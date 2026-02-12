@@ -131,8 +131,8 @@
 ### Day11
 
 1. 要做出明智的决定，你需要保持头脑清醒并考虑所有方面。 (clear)
-  - To make clear decisions, you need to keep a clear mind and consider all aspects.
-2. 在被技术娴熟的机械师修理过后，这辆车的状况极佳。 (condition)
+  - To make wise decisions, you need to keep a clear mind and consider all aspects.
+1. 在被技术娴熟的机械师修理过后，这辆车的状况极佳。 (condition)
   - The car is in excellent condition after being repaired by the skilled mechanic.
 3. 科学家认为压力与精神疾病之间存在密切联系。 (connection)
   - Scientists believe there is a close connection between stress and mental illness.
@@ -150,8 +150,8 @@
 3. 警卫检查了每个人的身份证才允许他们进入大楼。 (guard)
   - The security guard checked everyone's ID before allowing them into the building.
 4. 我喜欢在美术馆闲逛并欣赏画作。 (hang)
-  - I like to hang around the art gallery and admire the paintings.
-5. 我无法想象生活在一个没有任何现代化设施的地方。 (imagine)
+  - I like to hang around the art gallery and enjoy the paintings.
+1. 我无法想象生活在一个没有任何现代化设施的地方。 (imagine)
   - I can't imagine living in a place without any modern facilities.
 
 ### Day13
