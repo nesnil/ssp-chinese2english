@@ -7,5 +7,5 @@
   - The security guard checked everyone's ID before allowing them into the building.
 4. 我喜欢在美术馆闲逛并欣赏画作。 (hang)
   - I like to hang around the art gallery and enjoy the paintings.
-1. 我无法想象生活在一个没有任何现代化设施的地方。 (imagine)
+5. 我无法想象生活在一个没有任何现代化设施的地方。 (imagine)
   - I can't imagine living in a place without any modern facilities.
