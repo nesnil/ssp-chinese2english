@@ -129,7 +129,6 @@
   - One of the best ways for people to keep fit is to develop healthy eating habits.
 
 ### Day11
-
 1. 要做出明智的决定，你需要保持头脑清醒并考虑所有方面。 (clear)
   - To make wise decisions, you need to keep a clear mind and consider all aspects.
 2. 在被技术娴熟的机械师修理过后，这辆车的状况极佳。 (condition)
@@ -142,7 +141,6 @@
   - We got into a conversation with our neighbours about the upcoming National Day.
 
 ### Day12
-
 1. 这个博物馆在特定日子允许游客免费参观。 (free)
   - This museum allows visitors to enter for free on certain days.
 2. 在开始一个项目之前，设定一个既具有挑战性又可实现的目标很重要。 (goal)
@@ -151,7 +149,7 @@
   - The security guard checked everyone's ID before allowing them into the building.
 4. 我喜欢在美术馆闲逛并欣赏画作。 (hang)
   - I like to hang around the art gallery and enjoy the paintings.
-1. 我无法想象生活在一个没有任何现代化设施的地方。 (imagine)
+5. 我无法想象生活在一个没有任何现代化设施的地方。 (imagine)
   - I can't imagine living in a place without any modern facilities.
 
 ### Day13
