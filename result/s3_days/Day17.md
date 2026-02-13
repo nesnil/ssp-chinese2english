@@ -7,6 +7,6 @@
 3. 这位失望的旅客因机场意外关闭而不得不取消行程。 (disappointed)
   - The disappointed traveler had to cancel his trip due to the unexpected closure of the airport.
 4. 在我们社区成立一个新的体育俱乐部的提议正在讨论中。(discussion)
-  - The proposal for setting a new sports club in our community is under discussion.
+  - The proposal for setting up a new sports club in our community is under discussion.
 5. 纸上的墨滴使阅读变得困难 (drop)
   - The drop of ink on the paper makes it difficult to read.
