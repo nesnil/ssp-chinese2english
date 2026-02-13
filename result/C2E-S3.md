@@ -183,8 +183,8 @@
 1. 许多年轻人似乎疯狂追逐这一最新时尚潮流。 (crazy)
   - Many young people seem to be crazy about following this latest fashion trend.
 2. 沙漠里的沙丘因为风的原因而不断改变形状。 (desert)
-  - The sand dunes in the desert are constantly changing due to the wind.
-3. 新的想法往往会从讨论中产生。 (develop)
+  - The sand dunes in the desert are constantly changing shape due to the wind.
+1. 新的想法往往会从讨论中产生。 (develop)
   - New ideas often develop from discussions.
 4. 一个社会的文化发展反映了它的价值观和信仰。 (development)
   - The cultural development of a society reflects its values and beliefs.
@@ -200,7 +200,7 @@
 3. 绳索的长度经过仔细测量 ，确保足够长能系住船 。 (length)
   - The length of the rope is measured carefully to ensure that it is long enough to tie the boat.
 4. 设定长期目标给予我们方向和动力。(long-term)
-  - Setting long-term goals gives direction and motivation.
+  - Setting long-term goals gives us direction and motivation.
 5. 这份报告主要关注该地区的经济发展。(mainly)
   - This report mainly focuses on the economic development of this region.
 
@@ -213,7 +213,7 @@
 3. 这位失望的旅客因机场意外关闭而不得不取消行程。 (disappointed)
   - The disappointed traveler had to cancel his trip due to the unexpected closure of the airport.
 4. 在我们社区成立一个新的体育俱乐部的提议正在讨论中。(discussion)
-  - The proposal for setting a new sports club in our community is under discussion.
+  - The proposal for setting up a new sports club in our community is under discussion.
 5. 纸上的墨滴使阅读变得困难 (drop)
   - The drop of ink on the paper makes it difficult to read.
 
@@ -224,11 +224,11 @@
 2. 为了在历史测试中取得满分，她仔细复习了所有关键日期和事件。 (mark)
   - In order to get full marks in the history test, she reviewed all the key dates and events carefully.
 3. 在交流中，我们应该注意肢体语言的意义。 (meaning)
-  - In communication, we should pay attention to the meaning of body language.
+  - We should pay attention to the meaning of body language in communication.
 4. 医生没有提到药物的任何副作用。 (mention)
   - The doctor didn't mention any side effects of the medicine.
 5. 客厅里乱得一团糟，我们需要马上打扫干净。 (mess)
-  - The living room is in a mess, and we need to clean it right away.
+  - The living room is in a mess, and we need to clean it up right away.
 
 ### Day19
 
