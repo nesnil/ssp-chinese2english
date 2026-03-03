@@ -184,7 +184,7 @@
   - Many young people seem to be crazy about following this latest fashion trend.
 2. 沙漠里的沙丘因为风的原因而不断改变形状。 (desert)
   - The sand dunes in the desert are constantly changing shape due to the wind.
-1. 新的想法往往会从讨论中产生。 (develop)
+3. 新的想法往往会从讨论中产生。 (develop)
   - New ideas often develop from discussions.
 4. 一个社会的文化发展反映了它的价值观和信仰。 (development)
   - The cultural development of a society reflects its values and beliefs.
@@ -291,7 +291,7 @@
 3. 如果温度降到0°C以下，水就会结冰。 (freeze)
   - If the temperature drops below 0°C, water freezes.
 4. 随着经济的快速增长，近年来出现了更多的就业机会。 (growth)
-  - With rapid economic growth, more job opportunities have emerged in recent years.
+  - With the rapid economic growth, more job opportunities have emerged in recent years.
 5. 客人向酒店经理投诉了隔壁的噪音。 (guest)
   - The guest complained to the hotel manager about the noise next door.
 
@@ -306,7 +306,7 @@
 4. 工厂正在为节日印制大量海报。 (print)
   - The factory is printing a large number of posters for the festival.
 5. 在周末，我更喜欢待在家里看喜剧节目。 (programme)
-  - On weekends, I prefer to stay at home and watch comedy programmes.
+  - On weekends, I prefer to stay at home and watch the comedy TV programme.
 
 ### Day25
 
@@ -324,7 +324,7 @@
 ### Day26
 
 1. 多亏司机良好的驾驶技术，他们安全到达了目的地。 (reach)
-  - Thanks to the driver's good skills, they reached their destination safely.
+  - Thanks to the driver's good driving skills, they reached their destination safely.
 2. 近年来，空气污染问题引起了人们的关注。 (recent)
   - In recent years, the problem of air pollution has attracted people's attention.
 3. 最近天气变化多端，我们需要密切注意天气预报。 (recently)
@@ -369,7 +369,7 @@
 3. 全班同学踏上了一段森林之旅，去了解植物。 (journey)
   - The whole class set off on a journey to the forest to learn about plants.
 4. 我不小心把咖啡洒在键盘上了，现在它不能正常工作了。 (keyboard)
-  - I accidentally spilled coffee on the keyboard, and now it doesn't work properly.
+  - I accidentally spilled coffee on my keyboard, so now it doesn't work properly.
 5. 取决于季节的不同，白菜的价格每公斤2元到3元不等。 (kilo)
   - The price of cabbage varies from 2 to 3 yuan per kilo depending on the season.
 
@@ -379,8 +379,8 @@
   - The book review allows us to have a good understanding of this book's main theme and characters.
 2. 运动员们在起跑线上站成了一排，等待比赛开始。 (row)
   - The athletes stood in a row at the starting line, waiting for the race to begin.
-3. 博物馆使用安保系统来保护珍贵艺术品不被盗。 (security)
-  - The museum uses security systems to protect precious artworks from being stolen.
+3. 博物馆使用保险箱来保护珍贵艺术品不被盗。 (security)
+  - The museum uses safes to protect precious artworks from being stolen.
 4. 不要习惯于在黑暗的房间里看屏幕。这对你的眼睛有害。 (screen)
   - Don't get used to looking at the screen in a dark room. It's harmful to your eyes.
 5. 根据交通规则，乘客必须在汽车启动前系好安全带。 (seat)
@@ -395,7 +395,7 @@
 3. 中国近年来在全球经济中处于领先地位。 (lead)
   - China has taken the lead in the global economy in recent years.
 4. 雷电会在干燥地区引起火灾，因此人们在这种天气下应小心。 (lightning)
-  - Lightning can cause fires in dry areas, so people should be careful during such weather.
+  - Thunder and lightning can cause fires in dry areas, so people should be careful during such weather.
 5. 魔术师的魔术表演非常受欢迎，以至于门票很快就售罄。 (magician)
   - The magician's magic shows were so popular that tickets sold out quickly.
 
@@ -405,8 +405,8 @@
   - We should be serious about reducing pollution and protecting the environment.
 2. 我的姐姐被梦寐以求的大学录取时，她感到震惊又兴奋。 (shocked)
   - My sister felt shocked and excited when she got accepted into her dream university.
-3. 我们学校注重长期学习，而不仅是短期考试成绩。 (short-term)
-  - Our school focuses on long-term learning rather than short-term test scores.
+3. 我们学校注重长期学习成果而不仅是短期考试成绩。 (short-term)
+  - Our school focuses on long-term learning outcomes rather than short-term test scores.
 4. 发达国家的经济形势与发展中国家的不同。 (situation)
   - The economic situation in developed countries is different from that in developing countries.
 5. 许多学生正在学习计算机技能，为未来的工作做准备。 (skill)
@@ -416,27 +416,27 @@
 
 1. 老师们召开了一次会议来讨论教学方法的改进。 (meeting)
   - The teachers held a meeting to discuss the improvement of teaching methods.
-2. 博物馆会定期进行安全检查以防事故发生。 (museum)
-  - Regular safety checks are carried out in the museum to prevent accidents.
+2. 矿井定期进行安全检查，防止事故发生。 (museum)
+  - Regular safety checks are carried out in the mine to prevent accidents.
 3. 我们错过了拍摄完美照片的机会，因为光线条件不理想。 (miss)
   - We missed the chance to take the perfect photo because the light conditions were not ideal.
-4. 在现代社会，心理健康比以前受到更多关注，因为人们面临着更多压力。 (modern)
-  - In modern society, mental health is receiving more attention than before because people are under greater pressure.
+4. 在现代社会，心理健康比以前受到更多关注，因为人们面临着更多的压力。 (modern)
+  - In modern society, mental health is getting more attention than before because people are facing more stress.
 5. 为了避免打扰他人，我们在电影院看电影时应该关掉手机。 (movie)
-  - To avoid disturbing others, we should turn off our phones when watching a movie.
+  - To avoid disturbing others, we should turn off our phones when watching a movie in the cinema.
 
 ### Day34
 
 1. 毕业典礼上，校长向同学们作了一段演讲。 (speech)
   - At the graduation ceremony, the headmaster gave a speech to the students.
 2. 长话短说，这名学生设法克服了困难并取得了优异的成绩。 (story)
-  - To cut a long story short, the student managed to overcome the difficulties and got excellent grades.
+  - To cut a long story short, the student managed to overcome the difficulties and achieve excellent grades.
 3. 这条笔直的路径直通向我们的目的地。 (straight)
-  - The straight path leads directly to our destination.
+  - The straight road leads directly to our destination.
 4. 在英语中，单词的重音可以改变它的含义。 (stress)
   - In English, the stress of a word can change its meaning.
 5. 志愿者成功地帮助无家可归的人找到住所和食物。 (succeed)
-  - The volunteer succeeded in helping the homeless find shelter and food.
+  - The volunteer succeeded in helping the homeless people find shelter and food.
 
 ### Day35
 
@@ -466,7 +466,7 @@
 
 ### Day37
 
-1. 男队的配合如此完美，以至于他们提前完成了项目。 (perfect)
+1. 团队的配合如此完美，以至于他们提前完成了项目。 (perfect)
   - The team's cooperation was so perfect that they completed the project ahead of schedule.
 2. 听到这个可怜的孤儿的消息后，我不禁对他产生了怜悯。 (pity)
   - After hearing the news about the poor orphan, I couldn't help feeling pity for him.

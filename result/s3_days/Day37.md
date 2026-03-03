@@ -1,6 +1,6 @@
 ### Day37
 
-1. 男队的配合如此完美，以至于他们提前完成了项目。 (perfect)
+1. 团队的配合如此完美，以至于他们提前完成了项目。 (perfect)
   - The team's cooperation was so perfect that they completed the project ahead of schedule.
 2. 听到这个可怜的孤儿的消息后，我不禁对他产生了怜悯。 (pity)
   - After hearing the news about the poor orphan, I couldn't help feeling pity for him.
