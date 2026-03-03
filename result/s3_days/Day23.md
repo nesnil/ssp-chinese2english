@@ -7,6 +7,6 @@
 3. 如果温度降到0°C以下，水就会结冰。 (freeze)
   - If the temperature drops below 0°C, water freezes.
 4. 随着经济的快速增长，近年来出现了更多的就业机会。 (growth)
-  - With rapid economic growth, more job opportunities have emerged in recent years.
+  - With the rapid economic growth, more job opportunities have emerged in recent years.
 5. 客人向酒店经理投诉了隔壁的噪音。 (guest)
   - The guest complained to the hotel manager about the noise next door.

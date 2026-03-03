@@ -1,7 +1,7 @@
 ### Day26
 
 1. 多亏司机良好的驾驶技术，他们安全到达了目的地。 (reach)
-  - Thanks to the driver's good skills, they reached their destination safely.
+  - Thanks to the driver's good driving skills, they reached their destination safely.
 2. 近年来，空气污染问题引起了人们的关注。 (recent)
   - In recent years, the problem of air pollution has attracted people's attention.
 3. 最近天气变化多端，我们需要密切注意天气预报。 (recently)

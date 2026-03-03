@@ -9,4 +9,4 @@
 4. 工厂正在为节日印制大量海报。 (print)
   - The factory is printing a large number of posters for the festival.
 5. 在周末，我更喜欢待在家里看喜剧节目。 (programme)
-  - On weekends, I prefer to stay at home and watch comedy programmes.
+  - On weekends, I prefer to stay at home and watch the comedy TV programme.

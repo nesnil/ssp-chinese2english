@@ -7,6 +7,6 @@
 3. 中国近年来在全球经济中处于领先地位。 (lead)
   - China has taken the lead in the global economy in recent years.
 4. 雷电会在干燥地区引起火灾，因此人们在这种天气下应小心。 (lightning)
-  - Lightning can cause fires in dry areas, so people should be careful during such weather.
+  - Thunder and lightning can cause fires in dry areas, so people should be careful during such weather.
 5. 魔术师的魔术表演非常受欢迎，以至于门票很快就售罄。 (magician)
   - The magician's magic shows were so popular that tickets sold out quickly.
