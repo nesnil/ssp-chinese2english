@@ -1,7 +1,7 @@
 ### Day50
 
 1. 这位消防员警告大家火灾期间不要使用电梯。 (warn)
-  - The fireman warned people not to use the elevator during a fire.
+  - The fireman warned the people not to use the elevator during a fire.
 2. 尽管她很富有，但她一直过着简单的生活。 (wealthy)
   - Despite being wealthy, she always lives a simple life.
 3. 超市提供一系列种类繁多的商品，从新鲜蔬菜到电子电器。 (wide)

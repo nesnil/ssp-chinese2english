@@ -9,4 +9,4 @@
 4. 我想对你的成功表示祝贺。 (offer)
   - I would like to offer my congratulations on your success.
 5. 她用植物和家人的照片装饰了办公室。 (office)
-  - She decorated her office with plants and family photos.
+  - She decorated her office with plants and pictures of her family.
