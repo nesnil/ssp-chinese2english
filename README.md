@@ -10,18 +10,36 @@
 
 ## 当前进度
 
-项目持续更新中，目前已更新至第三季（S3）。
+项目持续更新中，目前已开始更新第四季（S4），当前已整理 Day1-Day2。
 
 ## 目录结构
 
-- `pdf/`：原始 PDF 资料（S1 / S2 / S3）
+- `imgs/`：按季度整理的原始练习图片（如 `imgs/s4/`）
+- `pdf/`：原始 PDF 资料（S1 / S2 / S3 / S4）
 - `result/`：整理后的 Markdown 成果
   - `C2E-S1.md`
   - `C2E-S2.md`
   - `C2E-S3.md`
-  - `s1_days/`、`s2_days/`、`s3_days/`（按天拆分版本）
+  - `C2E-S4.md`
+  - `s1_days/`、`s2_days/`、`s3_days/`、`s4_days/`（按天拆分版本）
 - `case/`：格式参考与对照样例
 - `tools/`：转换、校验与合并脚本
+
+## 当前流程
+
+第四季开始，仓库采用统一流程整理新增内容：
+
+1. 从微信文章提取每日练习图片，按季度保存到 `imgs/sX/`
+2. 按 `中译英-每日一练.SX.DayN.pM` 规则重命名图片
+3. 每日 3 张图片合并为一个 PDF，保存到 `pdf/sX/`
+4. 根据题目页与答案页生成每日 Markdown，并汇总到季度总表
+
+当前 S4 已完成：
+
+- `imgs/s4/` 下的 Day1-Day2 图片
+- `pdf/s4/` 下的 Day1-Day2 PDF
+- `result/s4_days/` 下的 Day1-Day2 Markdown
+- `result/C2E-S4.md` 季度汇总
 
 ## 说明
 
