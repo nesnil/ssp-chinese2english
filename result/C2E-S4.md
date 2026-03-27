@@ -62,3 +62,29 @@
   - Our caring teacher always stays after class to help students who have difficulty with their homework.
 5. 朋友间出现分歧时，倾听彼此并找到解决办法是很重要的。 (case)
   - In the case of a disagreement between friends, it's important to listen to each other and find a solution.
+
+### Day6
+
+1. 大雨过后，空气变得清新，天空变得晴朗。 (clear)
+  - After the heavy rain, the air became fresh, and the sky turned clear.
+2. 为使雕塑免受天气损害，这位艺术家添加了一层特殊的保护漆。 (coat)
+  - To keep the sculpture safe from weather damage, the artist added a special coat of protective paint.
+3. 和过去相比，我们现在的生活变得更加幸福和便捷了。 (compare)
+  - Compared with the past, our life has become happier and more convenient now.
+4. 老师花了几分钟讲解这节课的重点，这帮大家理解得更好了。 (couple)
+  - The teacher spent a couple of minutes explaining the key points of the lesson, which helped everyone understand better.
+5. 博物馆展出的设计师手袋不仅看起来美观，还讲述了时尚如何反映文化的故事。 (designer)
+  - The designer bags on display at the museum not only looked beautiful but also told the story of how fashion can reflect culture.
+
+### Day7
+
+1. 为了支持本地商家，许多人选择用现金支付，而不是刷卡。 (cash)
+  - In order to support local businesses, many people choose to pay in cash instead of using cards.
+2. 上海春天的天气多变，所以出门前你应该查看天气预报。 (changeable)
+  - The weather in Shanghai is changeable in spring, so you should check the weather forecast before going out.
+3. 随着科技的发展，很多公司正试图通过使用机器来减少对廉价劳动力的依赖。 (cheap)
+  - With the development of technology, many companies are trying to reduce their reliance on cheap labour by using machines.
+4. 性格开朗的人经常给朋友们带来正能量。 (cheerful)
+  - People with a cheerful personality often bring positive energy to their friends.
+5. 这种巧克力棒由天然原料制成，在年轻人中很受欢迎。 (chocolate)
+  - This kind of chocolate bar is made from natural ingredients, and it’s very popular among young people.
