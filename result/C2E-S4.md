@@ -88,3 +88,42 @@
   - People with a cheerful personality often bring positive energy to their friends.
 5. 这种巧克力棒由天然原料制成，在年轻人中很受欢迎。 (chocolate)
   - This kind of chocolate bar is made from natural ingredients, and it’s very popular among young people.
+
+### Day8
+
+1. 当我在阅读时遇到一个不熟悉的单词时，我决定查词典来扩大词汇量。 (dictionary)
+  - When I came across an unfamiliar word while reading, I decided to look it up in a dictionary to expand my vocabulary.
+2. 这位电影导演选择讲述一个关于勇气的故事，这感动了很多人。 (director)
+  - The film director chose to tell a story about courage, which touched many people’s hearts.
+3. 船在波浪中上下颠簸，但船长保持冷静，带领团队安全抵达岸边。 (down)
+  - The boat moved up and down on the waves, but the captain stayed calm and led the team safely to the shore.
+4. 学生们在科技展上表现得很棒，除了有一个实验没按预期进行。 (except)
+  - The students did a great job in the science fair, except that one of the experiments didn’t work as expected.
+5. 学生们通过独立组织慈善活动，获得了宝贵的人生经验。 (experience)
+  - The students gained valuable life experience by organising the charity event on their own.
+
+### Day9
+
+1. 我们沿着滨海道路骑车，享受着清新的海风和美丽的风景。 (coast)
+  - We cycled along the coast road, enjoying the fresh sea breeze and the beautiful scenery.
+2. 在老师的帮助下，她才得以按时完成这篇难写的作文。 (complete)
+  - With the help of her teacher, she was able to complete this difficult essay on time.
+3. 我完全忘了考试这回事，直到前一天晚上同桌提醒我。 (completely)
+  - I completely forgot about the test until my deskmate reminded me the night before.
+4. 面对困难时，我们无论如何都不能失去希望。 (cost)
+  - When facing difficulties, we must not lose hope at any cost.
+5. 参加环保课程让学生更加意识到节约能源的重要性。 (course)
+  - Taking part in the course on environmental protection made the students more aware of the importance of saving energy.
+
+### Day10
+
+1. 近期乡村之行后，学生们决定拍摄一部关于乡村生活的纪录片。 (film)
+  - After a recent trip to the countryside, the students decided to film a documentary about rural life.
+2. 科学家们正在研究洪灾的成因，以帮助预防未来类似的灾害。 (flooding)
+  - Scientists are studying the causes of flooding to help prevent similar disasters in the future.
+3. 说话前三思非常重要，否则最后你可能会让自己出丑。 (fool)
+  - It's important to think twice before you speak, or you might end up making a fool of yourself.
+4. 两个孩子之间的友谊是在社区中心做志愿活动期间建立起来的。 (form)
+  - The friendship between the two kids was formed during their time volunteering at the community center.
+5. 学校各项活动包括植树、打扫花园以及提供环保建议。 (include)
+  - The school activities include planting trees, cleaning the garden, and giving advice on environmental protection.
