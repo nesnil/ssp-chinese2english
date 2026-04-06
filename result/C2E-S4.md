@@ -127,3 +127,94 @@
   - The friendship between the two kids was formed during their time volunteering at the community center.
 5. 学校各项活动包括植树、打扫花园以及提供环保建议。 (include)
   - The school activities include planting trees, cleaning the garden, and giving advice on environmental protection.
+
+### Day11
+
+1. 即使公园里的老树看起来枯死了，但在园丁精心照料后，它又恢复了生机。 (dead)
+  - Even though the old tree in the park looked dead, it came back to life after the gardener took good care of it.
+2. 当地政府与工厂达成协议，要求它使用清洁能源以保护环境。 (deal)
+  - The local government made a deal with the factory, requiring it to use clean energy in order to protect the environment.
+3. 在最黑暗的时刻，正是希望之光帮助我们克服对死亡的恐惧。 (death)
+  - In the darkest moments, it is the light of hope that helps us overcome the fear of death.
+4. 如果你想提高英语水平，你应该深入探究这门语言，而不仅仅是背单词。 (dig)
+  - If you want to improve your English, you should dig deep into the language and not just memorize words.
+5. 灾难过后，政府立即采取行动向受灾地区提供援助。 (disaster)
+  - After the disaster, the government took immediate action to provide aid to the affected areas.
+
+### Day12
+
+1. 科技行业的快速发展给年轻人带来了许多新的就业机会。 (industry)
+  - The rapid development of the technology industry has brought many new job opportunities to young people.
+2. 父母应该注意他们的说话方式，因为他们的话语会影响孩子的价值观。 (influence)
+  - Parents should be careful about the way they speak, as their words can influence their children's values.
+3. 这本书介绍了许多中国传统故事，有助于读者更好地理解中国文化。 (introduce)
+  - This book introduces many traditional Chinese stories, which helps readers better understand Chinese culture.
+4. 学习新事物的乐趣让我对大学生活充满好奇和兴奋。 (joy)
+  - The joy of learning new things makes me curious and excited about university life.
+5. 她努力提高英语水平，最终在考试中取得了很大进步。 (level)
+  - She worked hard to raise her English to a new level, and finally made great progress in the exam.
+
+### Day13
+
+1. 一种新药的发现给很多患有这种疾病的病人带来了希望。 (discovery)
+  - The discovery of a new medicine brought hope to many patients suffering from this disease.
+2. 学生们售卖手工艺品换取美元，用以支持山村里的一所学校。 (dollar)
+  - The students sold handmade crafts in exchange for dollars to support a school in the mountain village.
+3. 小男孩决定把他所有的零花钱捐给一家帮助残疾人的慈善机构。 (donate)
+  - The little boy decided to donate all his pocket money to a charity that helps disabled people.
+4. 尽管很多人对这项新技术持怀疑态度，但它已经给我们的生活带来了巨大变化。 (doubtful)
+  - Although many people hold a doubtful attitude towards this new technology, it has brought great changes to our lives.
+5. 戏剧老师鼓励学生们通过表演表达情感，这帮助他们发现了自己隐藏的天赋。 (drama)
+  - The drama teacher encouraged the students to express their feelings through acting, which helped them discover their hidden talents.
+
+### Day14
+
+1. 冬天，这棵树像石头一样毫无生机，但在春天它会再次开花。 (lifeless)
+  - In winter, the tree was as lifeless as a stone, but it would bloom again in spring.
+2. 这首诗的每一行都充满希望，它提醒我们永远不要放弃追求梦想。 (line)
+  - Each line of this poem is filled with hope, and it reminds us never to give up pursuing our dreams.
+3. 她用一种聪明的方式解决了问题，同学们都惊讶于她有如此创造力。 (manner)
+  - She solved the problem in a clever manner, and her classmates were surprised by how creative she could be.
+4. 机器人的每一个动作都被记录和分析，以使其更高效。 (move)
+  - The robot's every move was recorded and analyzed to make it more efficient.
+5. 一部好电影可以通过展现善良与勇气的重要性对人们产生积极的影响。 (movie)
+  - A good movie can have a positive impact on people by showing the importance of kindness and courage.
+
+### Day15
+
+1. 地震后，医护人员日夜工作拯救生命，展现出真正的奉献精神。 (earthquake)
+  - After the earthquake, doctors and nurses worked day and night to save lives, showing true dedication.
+2. 去年我们城市东部建成了一座新图书馆，它已成为学生们的热门去处。 (east)
+  - A new library was built in the east of our city last year, and it has become a popular place for students.
+3. 在城市中种植更多树木可以对改善空气质量产生长期的影响。 (effect)
+  - Planting more trees in cities can have a long-term effect on improving air quality.
+4. 电子书被广泛用于现代教育中，因为它们便于携带。 (electronic)
+  - Electronic books are widely used in modern education because they are easy to carry.
+5. 从错误中学习是有价值的，尤其是当你尽了最大努力却依然失败时。 (especially)
+  - Learning from mistakes is valuable, especially when you try your best and still fail.
+
+### Day16
+
+1. 虽然他对面试感到紧张，但他准备充分，给面试官留下了深刻印象。 (nervous)
+  - Although he was nervous about the interview, he prepared well and impressed the interviewer.
+2. 我们只有设定明确目标并采取行动，才能取得进步。 (only)
+  - We can make progress only if we set clear goals and take action.
+3. 老师提前订购了一套科学设备，为即将到来的实验做准备。 (order)
+  - The teacher ordered a set of science equipment in advance to prepare for the coming experiment.
+4. 随着人口增长，城市建造更多绿色空间以改善生活质量是很重要的。 (population)
+  - With a growing population, it is important for cities to build more green spaces to improve the quality of life.
+5. 为了保持健康，正确烹饪食物并保持均衡饮食很有必要。 (properly)
+  - To stay healthy, it is necessary to cook food properly and eat a balanced diet.
+
+### Day17
+
+1. 为了在期末考试中取得好成绩，我们应该复习笔记并多做练习题。 (exam)
+  - To do well in the final exam, we should review our notes and practice more exercises.
+2. 比赛前教练的讲话让全队感到激动，并给了他们强烈的自信心。 (excite)
+  - The coach's speech before the match excited the team and gave them a strong sense of confidence.
+3. 慈善活动非常成功，筹集到的资金超出了预期。 (expectation)
+  - The charity event was a great success, and the money raised was beyond expectations.
+4. 探索精神一直激励着科学家们寻找解决难题的新方法。 (exploration)
+  - The spirit of exploration has always driven scientists to find new ways to solve difficult problems.
+5. 尽管追随最新的时尚潮流很有趣，但穿让自己感到舒适的衣服也同样重要。 (fashion)
+  - While following the latest fashion trend is fun, it's also important to wear what makes you feel comfortable.
