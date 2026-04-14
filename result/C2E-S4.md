@@ -218,3 +218,68 @@
   - The spirit of exploration has always driven scientists to find new ways to solve difficult problems.
 5. 尽管追随最新的时尚潮流很有趣，但穿让自己感到舒适的衣服也同样重要。 (fashion)
   - While following the latest fashion trend is fun, it's also important to wear what makes you feel comfortable.
+
+### Day18
+
+1. 在实验室中，学生被要求佩戴防护手套和护目镜，以确保他们在实验中的安全。 (protective)
+  - In the lab, students are required to wear protective gloves and goggles to ensure their safety during experiments.
+2. 我们带的梯子足够高可以够到树顶，方便我们迅速救下那只猫。 (reach)
+  - The ladder we brought was tall enough to reach the top of the tree, making it easier for us to rescue the cat quickly.
+3. 作为老师，我强烈推荐这本书给所有想学会如何更好地管理时间的学生。 (recommend)
+  - As a teacher, I highly recommend this book to all students who want to learn how to manage their time better.
+4. 经过一整个上午的学习，短暂休息能帮助你在下午保持专注。 (rest)
+  - After a long morning of study, a short rest can help you stay focused in the afternoon.
+5. 顾客对服务感到满意，并留下了好评。 (satisfied)
+  - The customer was satisfied with the service and left a good review.
+
+### Day19
+
+1. 通过合理饮食和规律锻炼来保持健康，是一种许多人正在追随的流行生活方式。 (fashionable)
+  - Staying healthy by eating well and exercising regularly is a fashionable lifestyle that many people are following.
+2. 为了改善你的学习习惯，你应该尝试逐个完成每门学科，而不是把它们都留到最后一刻。 (finish)
+  - To improve your study habits, you should try to finish each subject one by one instead of leaving them all for the last minute.
+3. 学生们学习了如何防范洪水灾害，并分享了他们关于保护环境的想法。 (flood)
+  - The students learned about how to prevent flood damage and shared their ideas on protecting the environment.
+4. 尽管他被迫搬到一个新城市，但他很快结交了新朋友并适应了那里的生活。 (force)
+  - Even though he was forced to move to a new city, he quickly made new friends and adapted to life there.
+5. 她总是把叉子放在盘子的左侧，遵循正确的西方用餐规矩。 (fork)
+  - She always places the fork on the left side of the plate, following the correct Western dining rules.
+
+### Day20
+
+1. 酒店在客人到达时为每人提供了一份欢迎饮品，让他们感到宾至如归。 (serve)
+  - The hotel served a welcome drink to each guest upon arrival to make them feel at home.
+2. 学生们参观了一处电影片场，学习电影是如何制作的，他们对幕后的辛勤工作感到惊叹。 (set)
+  - The students visited a film set to learn how movies are made, and they were amazed by the hard work behind the scenes.
+3. 这部纪录片是在六个月时间内拍摄的，以展现自然之美。 (shoot)
+  - The documentary was shot over a period of six months to show the beauty of nature.
+4. 这枚银牌对这位年轻选手来说是一大进步，也给了她继续进步的信心。 (silver)
+  - The silver medal was a big step forward for the young player, and it gave her the confidence to keep improving.
+5. 在智能机器人的帮助下，老年人能够更加独立地生活。 (smart)
+  - With the help of smart robots, the elderly can live more independently.
+
+### Day21
+
+1. 当她的期末分数获得A时，她的努力终于得到了回报。 (grade)
+  - Her hard work finally paid off when her final grade was an A.
+2. 机场的警卫接受过培训，能够应对紧急情况并保障旅客安全。 (guard)
+  - The guards at the airport are trained to deal with emergencies and keep travelers safe.
+3. 培养良好的学习习惯是获得长久成功的关键。 (habit)
+  - Developing good study habits is the key to achieving long-term success.
+4. 挂在书桌上方的画作让她想起了她在乡村度过的时光。 (hang)
+  - The painting that hung above the desk reminded her of the time she spent in the countryside.
+5. 没有正确的程序，机器人几乎无法回答问题。 (hardly)
+  - The robot could hardly respond to the questions without the right program.
+
+### Day22
+
+1. 种植更多树木是防止土壤侵蚀和保护环境的有效方法。 (soil)
+  - Planting more trees is an effective way to prevent soil erosion and protect the environment.
+2. 太阳能是一种清洁且可再生的资源，有助于减少污染。 (solar)
+  - Solar energy is a clean and renewable resource that can help reduce pollution.
+3. 穿着简约自然的风格被认为是现代时尚中的一种流行趋势。 (style)
+  - Dressing in a simple and natural style is considered a popular trend in modern fashion.
+4. 图书馆提供种类繁多的书籍，例如小说、历史书和科学杂志。 (such)
+  - The library offers a wide range of books, such as novels, history books, and science magazines.
+5. 青少年感到压力是很常见的，但他们应该学会健康地管理压力。 (teenager)
+  - It is common for teenagers to feel stressed, but they should learn to manage stress in a healthy way.
