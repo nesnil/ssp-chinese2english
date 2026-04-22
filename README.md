@@ -10,7 +10,7 @@
 
 ## 当前进度
 
-项目持续更新中，目前已开始更新第四季（S4），当前已整理 Day1-Day22。
+项目持续更新中，目前已开始更新第四季（S4），当前已整理 Day1-Day27。
 
 ## 目录结构
 
@@ -36,9 +36,9 @@
 
 当前 S4 已完成：
 
-- `imgs/s4/` 下的 Day1-Day22 图片
-- `pdf/s4/` 下的 Day1-Day22 PDF
-- `result/s4_days/` 下的 Day1-Day22 Markdown
+- `imgs/s4/` 下的 Day1-Day27 图片
+- `pdf/s4/` 下的 Day1-Day27 PDF
+- `result/s4_days/` 下的 Day1-Day27 Markdown
 - `result/C2E-S4.md` 季度汇总
 
 ## 说明
