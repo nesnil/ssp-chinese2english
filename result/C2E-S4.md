@@ -348,3 +348,133 @@
   - The teacher always encourages us to be our own masters, not just follow others blindly, but think independently.
 5. 在工厂里，工人们使用棉花作为主要原材料来制作高质量的服装。 (material)
   - In the factory, workers use cotton as the main raw material to make high-quality clothing.
+
+### Day28
+
+1. 政府在医疗护理方面投入了很多，以确保每个人都能获得基本的医疗服务。 (medical)
+  - The government has invested a lot in medical care to make sure everyone can get basic health services.
+2. 阅读能拓宽视野、丰富知识，更不用说还能带给我们无尽的快乐和内心的平静。 (mention)
+  - Reading can broaden our horizons and enrich our knowledge, not to mention bringing us endless joy and peace of mind.
+3. 当你匆忙时很容易搞砸，所以慢慢来，做事情认真点。 (mess)
+  - It's easy to mess up when you're in a hurry, so take your time and do things carefully.
+4. 尽管在实现目标的路上我们遇到了一些困难，但不妨把它们看作宝贵的教训。 (might)
+  - Even though we have met some difficulties on the way to achieving our goals, we might as well regard them as valuable lessons.
+5. 经过数月的刻苦训练，我们校篮球队终于在决赛中以微弱优势战胜了强劲的对手。 (narrow)
+  - After months of hard training, our school basketball team finally achieved a narrow victory over the strong opponent in the final match.
+
+### Day29
+
+1. 如果我们想和人们和睦相处，学会礼貌地与人沟通是很有必要的。 (necessary)
+  - It is necessary to learn to communicate with others politely if we want to get along well with people.
+2. 只空想而不采取行动，或轻易放弃，都无法让我们找到光明的未来。 (neither)
+  - Neither just thinking without action nor giving up easily will lead us to find a bright future.
+3. 在繁忙的校园生活中，青少年感到烦恼和有压力是完全正常的。 (normal)
+  - It's completely normal for teenagers to have worries and stress during their busy school life.
+4. 你真正的价值与别人如何看你无关，而取决于你选择成为什么样的人。 (nothing)
+  - Your true value has nothing to do with how others look at you, but depends on what kind of person you choose to be.
+5. 很多读者都期待他的新书，因为他即将出版一部基于自己不同寻常的经历的小说。 (novel)
+  - Many readers are looking forward to his new book because he is going to publish a novel (which is) based on his own unusual experiences.
+
+### Day30
+
+1. 我总是会带一包坚果作为两餐之间的健康零食。 (packet)
+  - I always carry a packet of nuts as a healthy snack between meals.
+2. 学生们决定画一些美丽的画作，以此来表达他们对辛勤工作的老师的感谢。 (paint)
+  - The students decided to paint some beautiful pictures to express their thanks to their hard-working teachers.
+3. 支付前我们应仔细核对账单，避免一些不必要的错误。 (payment)
+  - We should check the bill carefully before payment to avoid some unnecessary mistakes.
+4. 暴风雨过后，森林再次变得宁静，仿佛什么都没发生过一样。 (peaceful)
+  - After the storm, the forest became peaceful again, as if nothing had happened.
+5. 根据饼状图显示，超过一半的学生更喜欢通过小组讨论来学习，这有助于培养他们的沟通技能。 (pie)
+  - According to the pie chart, over half of the students prefer to learn through group discussion, which helps develop communication skills.
+
+### Day31
+
+1. 这位年轻发明家的先锋精神激励我们打破常规，尝试用新方法来改善生活。 (pioneer)
+  - The pioneer spirit of this young inventor inspired us to think outside the box and try new ways to improve our lives.
+2. 通过学会为零花钱做预算，青少年能逐步培养独立生活的能力。 (pocket)
+  - By learning to budget their pocket money, teenagers can gradually develop the ability to live independently.
+3. 很多伟大的人证明了高尚的品格远比崇高的社会地位和巨额财富更加珍贵。 (position)
+  - Many great people have proved that a noble character is far more precious than a high social position and huge wealth.
+4. 那位在街上捡到一张十英镑纸币的小女孩，选择把它交给警察而不是自己留着。 (pound)
+  - The little girl, who found a ten-pound note on the street, chose to hand it in to the police instead of keeping it for herself.
+5. 随着人们野生动物保护意识的增强，珍稀动物数量的急剧下降在近些年极大地得到了缓解。 (rapid)
+  - With people's growing awareness of wildlife protection, the rapid decline of rare animal numbers has been greatly slowed in recent years.
+
+### Day32
+
+1. 如果我们充分利用每一分钟并坚持练习，我们的英语技能将快速且稳步地提升。 (rapidly)
+  - If we make full use of every minute and practice regularly, our English skills will improve rapidly and steadily.
+2. 闲暇时听轻音乐有助于我保持放松，并缓解繁重的学习任务带来的疲惫。 (relaxed)
+  - Listening to soft music in spare time helps me stay relaxed and reduce tiredness from heavy study tasks.
+3. 老师引导我们为自己的选择负责，这对我们的长远成长至关重要。 (responsibility)
+  - Teachers guide us to take responsibility for our choices, which plays an important role in our long-term growth.
+4. 父母应该对自己的日常行为负责，为他们的孩子树立良好榜样。 (responsible)
+  - Parents should be responsible for their daily behaviour and set a good example for their children.
+5. 随着城市的快速发展，人们的生活水平和幸福感会提升。 (rise)
+  - With the rapid development of our city, people's living standards and happiness will rise.
+
+### Day33
+
+1. 我们学校慈善活动中展示的精美手工艺品仅供分享，而非出售。 (sale)
+  - The beautiful handicrafts displayed in our school charity activity are only for sharing, not for sale.
+2. 正如一句古老的谚语所说，熟能生巧，它激励我们每日坚持努力。 (saying)
+  - As an old saying goes, practice makes perfect, and it encourages us to keep working hard every day.
+3. 随着慢慢长大我变得勇敢，黑暗再也不会吓到我。 (scare)
+  - As I grow older, I become braver, and the darkness won't scare me any longer.
+4. 虽然他害怕当众发言，但他在多次练习后一点点变得自信起来。 (scared)
+  - Though he was scared to speak in public, he became confident little by little after practicing many times.
+5. 手里拿着剪刀跑步是很危险的，因此我们在学校必须严格遵守安全规则。 (scissors)
+  - It's dangerous to run with scissors in hands, so we must follow safety rules strictly at school.
+
+### Day34
+
+1. 我们呼吁所有游客保护洁净的海滨，不要在沙滩上乱扔任何垃圾。 (seaside)
+  - We call on all visitors to protect the clean seaside and never leave any rubbish on the beach.
+2. 他对改善健康是认真的，所以他放弃了垃圾食品并开始规律锻炼。 (serious)
+  - He is serious about improving his health, so he gives up junk food and starts exercising regularly.
+3. 新图书馆的设计和现代艺术博物馆相似，有着开放空间和自然采光。 (similar)
+  - The design of the new library is similar to that of a modern art museum, with open spaces and natural light.
+4. 那位善良的先生小心翼翼地帮助老人穿过了繁忙的马路，不求任何回报。 (sir)
+  - The kind sir helped the old man cross the busy road carefully without asking for anything in return.
+5. 在社会主义的指导下，更多人能够接受良好的教育并幸福地生活。 (socialism)
+  - Under the guidance of socialism, more people can receive good education and live happily.
+
+### Day35
+
+1. 诚实让一个人在现代社会受人欢迎、受人尊敬。 (society)
+  - Being honest makes a person popular and respected in modern society.
+2. 成功属于那些不遗余力努力工作，从不轻言放弃的人。 (spare)
+  - Success belongs to those who spare no effort to keep working hard and never give up easily.
+3. 一些野生动物在沙漠环境中能够依靠极少的水和干燥的食物存活下来。 (survive)
+  - Some wild animals can survive on little water and dry food in the desert environment.
+4. 在长途跋涉之后，旅行者们停下来搭帐篷，休息一整晚。 (tent)
+  - After walking for a long way, the travellers stopped to put up a tent and rest for the whole night.
+5. 被污染的空气和脏水会给人类健康和整个地球带来可怕的影响。 (terrible)
+  - Polluted air and dirty water will have a terrible influence on both human health and the whole earth.
+
+### Day36
+
+1. 他对自己粗鲁的行为感到非常抱歉，并承诺从现在起会礼貌待人。 (terribly)
+  - He felt terribly sorry about his rude behaviour and promised to be polite to others from now on.
+2. 当天空突然出现电闪雷鸣时，我们应该待在室内，并远离高处。 (thunder)
+  - We should stay indoors and stay away from high places when thunder and lightning suddenly appear in the sky.
+3. 自信是我们克服困难、实现梦想的最强大的工具。 (tool)
+  - Confidence is the most powerful tool for us to overcome difficulties and achieve our dreams.
+4. 在完成了小组项目后，学生们充分认识到了团队合作的重要性。 (totally)
+  - The students totally understood the importance of teamwork after the group project.
+5. 小狗高兴地冲向主人，差点撞倒墙边的一个瓶子。 (towards)
+  - The puppy ran happily towards its owner, and almost knocked down a bottle beside the wall.
+
+### Day37
+
+1. 去年，我父母决定创立自己的国际贸易公司，而不是为大公司工作。 (trade)
+  - Last year, my parents decided to start their own international trade company instead of working for big companies.
+2. 穿舒适的运动鞋对于长跑非常重要，因为它能保护你的双脚免受伤害。 (trainers)
+  - Wearing comfortable trainers is important for long-distance running, because they can protect your feet from injury.
+3. 这家医院以采用最新技术和专业护理治疗严重疾病而闻名。 (treat)
+  - This hospital is known for treating serious illnesses with the latest technology and expert care.
+4. 这个故事提醒我们，从失败中吸取的教训恰恰和成功中学到的一样宝贵。 (valuable)
+  - This story reminded us that the lessons we learn from failure are just as valuable as those we learn from success.
+5. 诚实对于建立良好的个人声誉具有重要价值。 (value)
+  - Being honest is of great value in building a good personal reputation.
