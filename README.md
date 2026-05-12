@@ -10,7 +10,7 @@
 
 ## 当前进度
 
-项目持续更新中，目前已开始更新第四季（S4），当前已整理 Day1-Day37。
+项目持续更新中，第四季（S4）已整理 Day1-Day39，完结撒花。
 
 ## 目录结构
 
@@ -34,18 +34,18 @@
 3. 每日 3 张图片合并为一个 PDF，保存到 `pdf/sX/`
 4. 根据题目页与答案页生成每日 Markdown，并汇总到季度总表
 
-当前 S4 已完成：
+当前 S4 已完成并完结：
 
-- `imgs/s4/` 下的 Day1-Day37 图片
-- `pdf/s4/` 下的 Day1-Day37 PDF
-- `result/s4_days/` 下的 Day1-Day37 Markdown
+- `imgs/s4/` 下的 Day1-Day39 图片
+- `pdf/s4/` 下的 Day1-Day39 PDF
+- `result/s4_days/` 下的 Day1-Day39 Markdown
 - `result/C2E-S4.md` 季度汇总
 
 ## 最近更新
 
-- S4 Day28-Day37 已整理完成。
+- S4 Day28-Day39 已整理完成，第四季完结撒花。
 - 每日资料包含 3 张原图、1 份 PDF、1 份按天 Markdown。
-- `result/C2E-S4.md` 已按 Day1-Day37 顺序合并。
+- `result/C2E-S4.md` 已按 Day1-Day39 顺序合并。
 - 微信文章中夹杂的订阅或广告图片不会进入正式练习页序列。
 
 ## 说明

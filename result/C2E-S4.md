@@ -478,3 +478,27 @@
   - This story reminded us that the lessons we learn from failure are just as valuable as those we learn from success.
 5. 诚实对于建立良好的个人声誉具有重要价值。 (value)
   - Being honest is of great value in building a good personal reputation.
+
+### Day38
+
+1. 班长自愿分享学习技巧给学业上有困难的同学。 (volunteer)
+  - The monitor volunteered to share learning skills with classmates who have trouble with their schoolwork.
+2. 这本小说描述了人类与机器人之间的战争，但最终以和平与理解结尾。 (war)
+  - The novel describes a war between humans and robots, but it ends with peace and understanding.
+3. 西方国家鼓励人们进行批判性思考并提出问题，这对个人成长非常重要。 (west)
+  - The West encourages people to think critically and ask questions, which is important for personal growth.
+4. 科学家们不惜一切代价，寻找解决污染和气候变化等全球性问题的方法。 (whatever)
+  - Scientists do whatever it takes to find solutions to global problems like pollution and climate change.
+5. 未来的汽车将会像一辆装有轮子的电脑，让我们的每日出行更加安全、环保且便捷。 (wheel)
+  - A future car will be like a computer on wheels, which makes our daily travel safer, greener and more convenient.
+
+### Day39
+
+1. 专家建议学生应尽可能多进行户外锻炼，以保持健康和强壮。 (whenever)
+  - The experts recommended that students should take exercise outdoors whenever possible to keep healthy and strong.
+2. 你是否赢得比赛并不重要，重要的是你已经尽了最大努力。 (whether)
+  - It doesn't matter whether you win or not, what matters is that you tried your best.
+3. 多亏医院里的X光机，医生能够快速发现健康问题并及时医治病人。 (X-ray)
+  - Thanks to the X-ray machines in hospitals, doctors can find health problems quickly and treat patients in time.
+4. 愿你在探索世界的壮丽山河时玩得开心。 (yourself)
+  - Hope you enjoy yourself when you explore the magnificent landscapes of the world.
