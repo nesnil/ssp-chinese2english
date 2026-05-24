@@ -1,0 +1,54 @@
+export type Question = {
+  id: string;
+  season: number;
+  day: number;
+  questionNo: number;
+  chinese: string;
+  prompt: string;
+  sourceText: string;
+  referenceAnswer: string;
+};
+
+export type SeasonSummary = {
+  season: number;
+  title: string;
+  dayCount: number;
+  questionCount: number;
+  days: Array<{ day: number; questionCount: number }>;
+};
+
+export type QuestionBank = {
+  version: number;
+  generatedAt: string;
+  totalSeasons: number;
+  totalDays: number;
+  totalQuestions: number;
+  seasons: SeasonSummary[];
+  questions: Question[];
+};
+
+export type GradeResult = {
+  score: number;
+  level: string;
+  encouragement: string;
+  issues: string[];
+  suggestion: string;
+  improvedAnswer: string;
+  referenceAnswer: string;
+  needsReview: boolean;
+  rawAi?: string;
+  errorSummary?: string;
+};
+
+export type AppConfig = {
+  port: number;
+  databasePath: string;
+  appPassword?: string;
+  sessionSecret?: string;
+  deepseekBaseUrl?: string;
+  deepseekApiKey?: string;
+  deepseekModel?: string;
+  aiTimeoutMs: number;
+  reviewScoreThreshold: number;
+  nodeEnv: string;
+};

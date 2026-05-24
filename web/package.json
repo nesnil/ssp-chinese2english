@@ -1,0 +1,32 @@
+{
+  "name": "c2e-practice",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:data": "node scripts/build-question-bank.mjs",
+    "validate:data": "node scripts/validate-question-bank.mjs",
+    "build:client": "vite build",
+    "build:server": "tsc -p tsconfig.server.json",
+    "build": "npm run build:data && npm run validate:data && npm run build:client && npm run build:server",
+    "dev": "npm run build:data && tsx watch src/server/index.ts",
+    "start": "node dist/server/index.js",
+    "test": "npm run build:data && npm run validate:data && npm run build:server && node --test tests/*.test.mjs",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit"
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.1.1",
+    "lucide-react": "^0.561.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.0.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}

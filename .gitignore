@@ -1,6 +1,12 @@
 .DS_Store
 .venv/
 tmp/
+data/
+web/node_modules/
+web/dist/
+web/generated/
+.env
+web/.env
 
 __pycache__/
 *.pyc
