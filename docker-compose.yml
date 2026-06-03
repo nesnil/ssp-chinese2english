@@ -12,6 +12,7 @@ services:
       - ./data:/app/data
     environment:
       APP_PASSWORD: "${APP_PASSWORD:?APP_PASSWORD is required}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-}"
       SESSION_SECRET: "${SESSION_SECRET:?SESSION_SECRET is required}"
       DEEPSEEK_BASE_URL: "${DEEPSEEK_BASE_URL:?DEEPSEEK_BASE_URL is required}"
       DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:?DEEPSEEK_API_KEY is required}"

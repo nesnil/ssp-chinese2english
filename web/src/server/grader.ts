@@ -1,4 +1,4 @@
-import type { AppConfig, GradeResult, Question } from "./types.js";
+import type { AppConfig, GradeResult, Question, WordEntry } from "./types.js";
 
 type ChatMessage = {
   role: "system" | "user";
@@ -89,6 +89,121 @@ export async function gradeAnswer(config: AppConfig, question: Question, answer:
   }
 }
 
+export async function gradeWordRecall(
+  config: AppConfig,
+  word: WordEntry,
+  input: { wordAnswer: string; meaningAnswers: Record<string, string> }
+): Promise<GradeResult> {
+  const referenceAnswer = wordReferenceAnswer(word);
+  return gradeWithAi(
+    config,
+    [
+      {
+        role: "system",
+        content:
+          "你是一位鼓励型初中英语词汇老师。请严格输出 JSON，不要 Markdown。批改单词听写和中文释义默写：英文拼写要严格，中文释义允许近义词、同义表达和部分核心意思，不要求逐字完全一致。多词性单词要分别看对应词性的中文。没有满分时，先鼓励，再指出最关键的问题。"
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          task: "批改单词和中文释义默写",
+          word: word.name,
+          definitions: word.definitions,
+          studentWord: input.wordAnswer,
+          studentMeaningsByPartOfSpeech: input.meaningAnswers,
+          outputSchema: gradeOutputSchema()
+        })
+      }
+    ],
+    referenceAnswer,
+    config.reviewScoreThreshold,
+    "重点比较单词拼写、词性和中文核心意思。"
+  );
+}
+
+export async function gradeExampleRecall(config: AppConfig, word: WordEntry, answer: string): Promise<GradeResult> {
+  const example = word.examples[0] || { english: "", chinese: "" };
+  return gradeWithAi(
+    config,
+    [
+      {
+        role: "system",
+        content:
+          "你是一位鼓励型初中英语例句默写老师。请严格输出 JSON，不要 Markdown。批改例句默写时，允许轻微大小写和标点差异，重点看核心意思、关键词、语法结构、时态和完整度。没有满分时，先鼓励，再指出最关键的问题。"
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          task: "批改英文例句默写",
+          word: word.name,
+          chineseExample: example.chinese,
+          referenceAnswer: example.english,
+          studentAnswer: answer,
+          outputSchema: gradeOutputSchema()
+        })
+      }
+    ],
+    example.english,
+    config.reviewScoreThreshold,
+    "重点比较例句主干、关键词、语法和完整度。"
+  );
+}
+
+async function gradeWithAi(
+  config: AppConfig,
+  messages: ChatMessage[],
+  referenceAnswer: string,
+  threshold: number,
+  fallbackSuggestion: string
+): Promise<GradeResult> {
+  if (!config.deepseekBaseUrl || !config.deepseekApiKey || !config.deepseekModel) {
+    throw new AiConfigError("DeepSeek 配置不完整，请设置 DEEPSEEK_BASE_URL、DEEPSEEK_API_KEY 和 DEEPSEEK_MODEL。");
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), config.aiTimeoutMs);
+
+  try {
+    const response = await fetch(chatCompletionsUrl(config.deepseekBaseUrl), {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.deepseekApiKey}`
+      },
+      body: JSON.stringify({
+        model: config.deepseekModel,
+        messages,
+        temperature: 0.25,
+        response_format: { type: "json_object" }
+      })
+    });
+
+    const bodyText = await response.text();
+    if (!response.ok) {
+      throw new Error(`DeepSeek HTTP ${response.status}: ${bodyText.slice(0, 400)}`);
+    }
+
+    const body = JSON.parse(bodyText) as { choices?: Array<{ message?: { content?: string } }> };
+    const content = body.choices?.[0]?.message?.content;
+    if (!content) {
+      throw new Error("DeepSeek response did not include message content.");
+    }
+
+    return normalizeGrade(JSON.parse(content), referenceAnswer, content, threshold);
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      return fallbackGrade(referenceAnswer, "AI 返回内容不是有效 JSON。", fallbackSuggestion);
+    }
+    if (error instanceof Error && error.name === "AbortError") {
+      return fallbackGrade(referenceAnswer, "AI 批改超时，请稍后重试。", fallbackSuggestion);
+    }
+    return fallbackGrade(referenceAnswer, error instanceof Error ? error.message : "AI 批改失败。", fallbackSuggestion);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export function normalizeGrade(input: Record<string, unknown>, referenceAnswer: string, rawAi: string, threshold: number): GradeResult {
   const score = clampScore(Number(input.score));
   const issues = Array.isArray(input.issues)
@@ -128,18 +243,37 @@ export function normalizeGrade(input: Record<string, unknown>, referenceAnswer: 
   };
 }
 
-function fallbackGrade(referenceAnswer: string, summary: string): GradeResult {
+function fallbackGrade(referenceAnswer: string, summary: string, suggestion = "重点比较句子主干、提示词和时态。"): GradeResult {
   return {
     score: 0,
     level: "待批改",
     encouragement: "你的答案已经提交成功，但 AI 批改暂时没有完成。",
     issues: ["请稍后再试，或先对照参考答案自查。"],
-    suggestion: "重点比较句子主干、提示词和时态。",
+    suggestion,
     improvedAnswer: referenceAnswer,
     referenceAnswer,
     needsReview: true,
     errorSummary: summary
   };
+}
+
+function gradeOutputSchema() {
+  return {
+    score: "0-100 integer",
+    level: "优秀/不错/继续加油/需要重练",
+    encouragement: "一句给孩子的鼓励",
+    issues: ["最多三条中文问题，简短具体"],
+    suggestion: "非满分时是一条最值得马上修改的建议；满分时是一句有趣、儿童友好的满分彩蛋鼓励，不能要求修改",
+    improvedAnswer: "在学生答案基础上改出的自然英文，或整理后的正确答案",
+    needsReview: "boolean，低于80分或关键错误为true"
+  };
+}
+
+function wordReferenceAnswer(word: WordEntry): string {
+  const definitions = word.definitions
+    .map((definition) => `${definition.partOfSpeech || "释义"} ${definition.meaning}`)
+    .join("；");
+  return `${word.name}：${definitions}`;
 }
 
 function clampScore(value: number): number {

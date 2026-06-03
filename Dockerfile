@@ -10,6 +10,7 @@ RUN npm install
 
 WORKDIR /app
 COPY result ./result
+COPY middle-school-wordlist ./middle-school-wordlist
 COPY web ./web
 WORKDIR /app/web
 RUN npm run build
@@ -27,6 +28,7 @@ RUN npm install --omit=dev
 
 COPY --from=build /app/web/dist ./dist
 COPY --from=build /app/web/generated ./generated
+COPY --from=build /app/middle-school-wordlist/sound ./middle-school-wordlist/sound
 
 RUN mkdir -p /app/data
 VOLUME ["/app/data"]
