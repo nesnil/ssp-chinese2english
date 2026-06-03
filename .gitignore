@@ -8,8 +8,10 @@ web/generated/
 .env
 web/.env
 
-__pycache__/
-*.pyc
+# 含部署坐标（域名 / SSH 主机 / 用户 / 路径）等私密信息，不入库
+AGENTS.md
+CLAUDE.md
+DEPLOY.md
 
 __pycache__/
 *.pyc
