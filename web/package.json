@@ -1,10 +1,12 @@
 {
   "name": "c2e-practice",
-  "version": "0.1.0",
+  "version": "1.0.1",
   "private": true,
   "type": "module",
   "scripts": {
-    "build:data": "node scripts/build-question-bank.mjs",
+    "build:questions": "node scripts/build-question-bank.mjs",
+    "build:words": "node scripts/build-word-bank.mjs",
+    "build:data": "npm run build:questions && npm run build:words",
     "validate:data": "node scripts/validate-question-bank.mjs",
     "build:client": "vite build",
     "build:server": "tsc -p tsconfig.server.json",

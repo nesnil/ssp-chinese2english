@@ -2,7 +2,7 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { createHash, randomBytes } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
-import type { AppConfig, GradeResult } from "./types.js";
+import type { AppConfig, GradeResult, WordEntry } from "./types.js";
 
 type SubmissionRow = {
   question_id: string;
@@ -22,6 +22,35 @@ type DayAttemptRow = {
   status: string;
   average_score: number | null;
   completed_at: string | null;
+};
+
+type WordSubmissionPhase = "word" | "example";
+
+type WordSessionRow = {
+  id: number;
+  scope_tag: string;
+  mode: string;
+  level_id: string | null;
+  word_count: number;
+  status: string;
+  started_at: string;
+  completed_at: string | null;
+};
+
+type WordSubmissionRow = {
+  word_id: string;
+  phase: WordSubmissionPhase;
+  word_answer: string | null;
+  meaning_answer_json: string;
+  answer: string;
+  score: number;
+  level: string;
+  encouragement: string;
+  issues_json: string;
+  suggestion: string;
+  improved_answer: string;
+  reference_answer: string;
+  needs_review: number;
 };
 
 export type ReviewSubmissionRow = SubmissionRow & {
@@ -81,6 +110,69 @@ export type DayAttemptStats = {
   lastCompletedAt: string | null;
 };
 
+export type WordProgressStats = {
+  totalWords: number;
+  practicedWords: number;
+  masteredWords: number;
+  reviewWords: number;
+  sessionCount: number;
+  submissionCount: number;
+};
+
+export type WordReviewRow = {
+  word_id: string;
+  latest_score: number;
+  latest_phase: WordSubmissionPhase;
+  latest_issues_json: string;
+  latest_at: string;
+};
+
+export type QuestionRow = {
+  id: string;
+  season: number;
+  day: number;
+  question_no: number;
+  chinese: string;
+  prompt: string;
+  source_text: string;
+  reference_answer: string;
+  sort_index: number;
+};
+
+export type WordRow = {
+  id: string;
+  source_id: string;
+  name: string;
+  sort_index: number;
+  definitions_json: string;
+  examples_json: string;
+  similar_json: string;
+  tags_json: string;
+  audio_path: string | null;
+};
+
+type SeedQuestion = {
+  id: string;
+  season: number;
+  day: number;
+  questionNo: number;
+  chinese: string;
+  prompt?: string;
+  sourceText?: string;
+  referenceAnswer: string;
+};
+
+type SeedWord = {
+  id: string;
+  sourceId?: string;
+  name: string;
+  definitions?: unknown;
+  examples?: unknown;
+  similar?: unknown;
+  tags?: unknown;
+  audioPath?: string | null;
+};
+
 export class AppDatabase {
   private db: DatabaseSync;
 
@@ -137,24 +229,122 @@ export class AppDatabase {
       );
 
       CREATE INDEX IF NOT EXISTS idx_day_attempts_day ON day_attempts(season, day, status, completed_at DESC);
+
+      CREATE TABLE IF NOT EXISTS word_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS word_sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        scope_tag TEXT NOT NULL,
+        mode TEXT NOT NULL,
+        level_id TEXT,
+        word_count INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        completed_at TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS word_session_items (
+        session_id INTEGER NOT NULL,
+        word_id TEXT NOT NULL,
+        item_no INTEGER NOT NULL,
+        PRIMARY KEY (session_id, word_id),
+        FOREIGN KEY (session_id) REFERENCES word_sessions(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS word_submissions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id INTEGER,
+        word_id TEXT NOT NULL,
+        phase TEXT NOT NULL,
+        word_answer TEXT,
+        meaning_answer_json TEXT NOT NULL DEFAULT '{}',
+        answer TEXT NOT NULL,
+        score INTEGER NOT NULL,
+        level TEXT NOT NULL,
+        encouragement TEXT NOT NULL,
+        issues_json TEXT NOT NULL,
+        suggestion TEXT NOT NULL,
+        improved_answer TEXT NOT NULL,
+        reference_answer TEXT NOT NULL,
+        needs_review INTEGER NOT NULL,
+        raw_ai TEXT,
+        error_summary TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (session_id) REFERENCES word_sessions(id) ON DELETE SET NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_word_sessions_status ON word_sessions(status, started_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_word_session_items_session ON word_session_items(session_id, item_no);
+      CREATE INDEX IF NOT EXISTS idx_word_submissions_word ON word_submissions(word_id, phase, id DESC);
+      CREATE INDEX IF NOT EXISTS idx_word_submissions_session ON word_submissions(session_id, word_id, phase);
+
+      CREATE TABLE IF NOT EXISTS questions (
+        id TEXT PRIMARY KEY,
+        season INTEGER NOT NULL,
+        day INTEGER NOT NULL,
+        question_no INTEGER NOT NULL,
+        chinese TEXT NOT NULL,
+        prompt TEXT NOT NULL DEFAULT '',
+        source_text TEXT NOT NULL DEFAULT '',
+        reference_answer TEXT NOT NULL,
+        sort_index INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_questions_day ON questions(season, day, question_no);
+
+      CREATE TABLE IF NOT EXISTS words (
+        id TEXT PRIMARY KEY,
+        source_id TEXT NOT NULL DEFAULT '',
+        name TEXT NOT NULL,
+        sort_index INTEGER NOT NULL DEFAULT 0,
+        definitions_json TEXT NOT NULL DEFAULT '[]',
+        examples_json TEXT NOT NULL DEFAULT '[]',
+        similar_json TEXT NOT NULL DEFAULT '[]',
+        tags_json TEXT NOT NULL DEFAULT '[]',
+        audio_path TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_words_name ON words(name);
+      CREATE INDEX IF NOT EXISTS idx_words_sort ON words(sort_index);
+
+      CREATE TABLE IF NOT EXISTS reference_meta (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
     `);
     this.addColumnIfMissing("submissions", "attempt_id", "INTEGER");
     this.addColumnIfMissing("submissions", "mode", "TEXT NOT NULL DEFAULT 'day'");
+    this.addColumnIfMissing("word_sessions", "level_id", "TEXT");
+    this.addColumnIfMissing("app_sessions", "role", "TEXT NOT NULL DEFAULT 'user'");
     this.db.exec("CREATE INDEX IF NOT EXISTS idx_submissions_attempt ON submissions(attempt_id, mode, question_no);");
+    this.db.exec("CREATE INDEX IF NOT EXISTS idx_word_sessions_level ON word_sessions(scope_tag, mode, level_id, status, started_at DESC);");
   }
 
   private addColumnIfMissing(table: string, column: string, definition: string) {
     const rows = this.db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
     if (!rows.some((row) => row.name === column)) {
-      this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`);
+      try {
+        this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`);
+      } catch (error) {
+        if (!(error instanceof Error) || !/duplicate column name/i.test(error.message)) throw error;
+      }
     }
   }
 
-  createSession(): string {
+  createSession(role: "user" | "admin" = "user"): string {
     const token = randomBytes(32).toString("base64url");
     const tokenHash = hashToken(token);
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString();
-    this.db.prepare("INSERT INTO app_sessions (token_hash, expires_at) VALUES (?, ?)").run(tokenHash, expiresAt);
+    this.db.prepare("INSERT INTO app_sessions (token_hash, expires_at, role) VALUES (?, ?, ?)").run(tokenHash, expiresAt, role);
     return token;
   }
 
@@ -166,12 +356,240 @@ export class AppDatabase {
     return Boolean(row);
   }
 
+  getSessionRole(token: string): "user" | "admin" | null {
+    const tokenHash = hashToken(token);
+    const row = this.db
+      .prepare("SELECT role FROM app_sessions WHERE token_hash = ? AND datetime(expires_at) > CURRENT_TIMESTAMP")
+      .get(tokenHash) as { role: string } | undefined;
+    if (!row) return null;
+    return row.role === "admin" ? "admin" : "user";
+  }
+
   deleteSession(token: string): void {
     this.db.prepare("DELETE FROM app_sessions WHERE token_hash = ?").run(hashToken(token));
   }
 
   pruneSessions(): void {
     this.db.prepare("DELETE FROM app_sessions WHERE datetime(expires_at) <= CURRENT_TIMESTAMP").run();
+  }
+
+  // --- Reference data: seeding, reads, and CRUD (questions + words) ---
+
+  seedQuestionsIfEmpty(questions: SeedQuestion[]): boolean {
+    const count = (this.db.prepare("SELECT COUNT(*) AS n FROM questions").get() as { n: number }).n;
+    if (count > 0) return false;
+    this.db.exec("BEGIN");
+    try {
+      const insert = this.db.prepare(`
+        INSERT INTO questions (id, season, day, question_no, chinese, prompt, source_text, reference_answer, sort_index)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      questions.forEach((question, index) => {
+        insert.run(
+          question.id,
+          question.season,
+          question.day,
+          question.questionNo,
+          question.chinese,
+          question.prompt || "",
+          question.sourceText || "",
+          question.referenceAnswer,
+          index
+        );
+      });
+      this.db.exec("COMMIT");
+      return true;
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
+  seedWordsIfEmpty(words: SeedWord[], meta: Record<string, string | number | null> = {}): boolean {
+    const count = (this.db.prepare("SELECT COUNT(*) AS n FROM words").get() as { n: number }).n;
+    if (count > 0) return false;
+    this.db.exec("BEGIN");
+    try {
+      const insert = this.db.prepare(`
+        INSERT INTO words (id, source_id, name, sort_index, definitions_json, examples_json, similar_json, tags_json, audio_path)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      words.forEach((word, index) => {
+        insert.run(
+          word.id,
+          word.sourceId || "",
+          word.name,
+          index,
+          JSON.stringify(word.definitions ?? []),
+          JSON.stringify(word.examples ?? []),
+          JSON.stringify(word.similar ?? []),
+          JSON.stringify(word.tags ?? []),
+          word.audioPath ?? null
+        );
+      });
+      for (const [key, value] of Object.entries(meta)) {
+        this.setReferenceMeta(key, value === null ? "" : String(value));
+      }
+      this.db.exec("COMMIT");
+      return true;
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
+  setReferenceMeta(key: string, value: string): void {
+    this.db
+      .prepare(`
+        INSERT INTO reference_meta (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+      `)
+      .run(key, value);
+  }
+
+  getReferenceMeta(key: string): string | null {
+    const row = this.db.prepare("SELECT value FROM reference_meta WHERE key = ?").get(key) as { value: string } | undefined;
+    return row ? row.value : null;
+  }
+
+  allQuestionRows(): QuestionRow[] {
+    return this.db
+      .prepare("SELECT id, season, day, question_no, chinese, prompt, source_text, reference_answer, sort_index FROM questions ORDER BY sort_index, season, day, question_no")
+      .all() as QuestionRow[];
+  }
+
+  getQuestionRow(id: string): QuestionRow | undefined {
+    return this.db
+      .prepare("SELECT id, season, day, question_no, chinese, prompt, source_text, reference_answer, sort_index FROM questions WHERE id = ?")
+      .get(id) as QuestionRow | undefined;
+  }
+
+  insertQuestion(input: QuestionRow): void {
+    this.db
+      .prepare(`
+        INSERT INTO questions (id, season, day, question_no, chinese, prompt, source_text, reference_answer, sort_index)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      .run(
+        input.id,
+        input.season,
+        input.day,
+        input.question_no,
+        input.chinese,
+        input.prompt,
+        input.source_text,
+        input.reference_answer,
+        input.sort_index
+      );
+  }
+
+  updateQuestion(id: string, fields: { chinese: string; prompt: string; source_text: string; reference_answer: string }): void {
+    this.db
+      .prepare(`
+        UPDATE questions
+        SET chinese = ?, prompt = ?, source_text = ?, reference_answer = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `)
+      .run(fields.chinese, fields.prompt, fields.source_text, fields.reference_answer, id);
+  }
+
+  deleteQuestion(id: string): void {
+    this.db.prepare("DELETE FROM questions WHERE id = ?").run(id);
+  }
+
+  countQuestionSubmissions(questionId: string): number {
+    return (
+      this.db.prepare("SELECT COUNT(*) AS n FROM submissions WHERE question_id = ?").get(questionId) as { n: number }
+    ).n;
+  }
+
+  nextQuestionSortIndex(): number {
+    const row = this.db.prepare("SELECT MAX(sort_index) AS m FROM questions").get() as { m: number | null };
+    return (row.m ?? -1) + 1;
+  }
+
+  queryCount(sql: string, params: Array<string | number>): number {
+    return (this.db.prepare(sql).get(...params) as { n: number }).n;
+  }
+
+  queryQuestionPage(where: string, params: Array<string | number>, limit: number, offset: number): QuestionRow[] {
+    return this.db
+      .prepare(
+        `SELECT id, season, day, question_no, chinese, prompt, source_text, reference_answer, sort_index
+         FROM questions ${where}
+         ORDER BY season, day, question_no
+         LIMIT ? OFFSET ?`
+      )
+      .all(...params, limit, offset) as QuestionRow[];
+  }
+
+  queryWordPage(where: string, params: Array<string | number>, limit: number, offset: number): WordRow[] {
+    return this.db
+      .prepare(
+        `SELECT id, source_id, name, sort_index, definitions_json, examples_json, similar_json, tags_json, audio_path
+         FROM words ${where}
+         ORDER BY sort_index, name
+         LIMIT ? OFFSET ?`
+      )
+      .all(...params, limit, offset) as WordRow[];
+  }
+
+  allWordRows(): WordRow[] {
+    return this.db
+      .prepare("SELECT id, source_id, name, sort_index, definitions_json, examples_json, similar_json, tags_json, audio_path FROM words ORDER BY sort_index, name")
+      .all() as WordRow[];
+  }
+
+  getWordRow(id: string): WordRow | undefined {
+    return this.db
+      .prepare("SELECT id, source_id, name, sort_index, definitions_json, examples_json, similar_json, tags_json, audio_path FROM words WHERE id = ?")
+      .get(id) as WordRow | undefined;
+  }
+
+  insertWord(input: WordRow): void {
+    this.db
+      .prepare(`
+        INSERT INTO words (id, source_id, name, sort_index, definitions_json, examples_json, similar_json, tags_json, audio_path)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      .run(
+        input.id,
+        input.source_id,
+        input.name,
+        input.sort_index,
+        input.definitions_json,
+        input.examples_json,
+        input.similar_json,
+        input.tags_json,
+        input.audio_path
+      );
+  }
+
+  updateWord(
+    id: string,
+    fields: { name: string; definitions_json: string; examples_json: string; tags_json: string; audio_path: string | null }
+  ): void {
+    this.db
+      .prepare(`
+        UPDATE words
+        SET name = ?, definitions_json = ?, examples_json = ?, tags_json = ?, audio_path = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `)
+      .run(fields.name, fields.definitions_json, fields.examples_json, fields.tags_json, fields.audio_path, id);
+  }
+
+  deleteWord(id: string): void {
+    this.db.prepare("DELETE FROM words WHERE id = ?").run(id);
+  }
+
+  countWordSubmissions(wordId: string): number {
+    return (this.db.prepare("SELECT COUNT(*) AS n FROM word_submissions WHERE word_id = ?").get(wordId) as { n: number })
+      .n;
+  }
+
+  nextWordSortIndex(): number {
+    const row = this.db.prepare("SELECT MAX(sort_index) AS m FROM words").get() as { m: number | null };
+    return (row.m ?? -1) + 1;
   }
 
   saveSubmission(input: {
@@ -219,6 +637,55 @@ export class AppDatabase {
       .prepare("INSERT INTO day_attempts (season, day, question_count, status) VALUES (?, ?, ?, 'in_progress')")
       .run(season, day, questionCount);
     return Number(result.lastInsertRowid);
+  }
+
+  startOrResumeDayAttempt(season: number, day: number, questionCount: number) {
+    let active = this.db
+      .prepare(
+        `
+        SELECT *
+        FROM day_attempts
+        WHERE season = ?
+          AND day = ?
+          AND status = 'in_progress'
+          AND id > COALESCE((
+            SELECT MAX(id)
+            FROM day_attempts
+            WHERE season = ? AND day = ? AND status = 'completed'
+          ), 0)
+        ORDER BY id DESC
+        LIMIT 1
+      `
+      )
+      .get(season, day, season, day) as DayAttemptRow | undefined;
+
+    if (active) {
+      const completed = this.completeDayAttemptIfReady(active.id);
+      if (!completed) {
+        return {
+          attemptId: active.id,
+          resumed: true,
+          submittedQuestionNos: this.getDayAttemptSubmittedQuestionNos(active.id)
+        };
+      }
+    }
+
+    const attemptId = this.startDayAttempt(season, day, questionCount);
+    return { attemptId, resumed: false, submittedQuestionNos: [] as number[] };
+  }
+
+  getDayAttemptSubmittedQuestionNos(attemptId: number): number[] {
+    const rows = this.db
+      .prepare(
+        `
+        SELECT DISTINCT question_no
+        FROM submissions
+        WHERE attempt_id = ? AND mode = 'day'
+        ORDER BY question_no
+      `
+      )
+      .all(attemptId) as Array<{ question_no: number }>;
+    return rows.map((row) => row.question_no);
   }
 
   getDayAttempt(attemptId: number): DayAttemptRow | null {
@@ -510,6 +977,378 @@ export class AppDatabase {
     const row = this.db.prepare("SELECT COUNT(*) AS count FROM submissions").get() as { count: number };
     return row.count;
   }
+
+  getWordBatchSize(): number {
+    const row = this.db.prepare("SELECT value FROM word_settings WHERE key = 'batch_size'").get() as { value: string } | undefined;
+    const parsed = row ? Number(row.value) : 5;
+    return clampWordBatchSize(parsed);
+  }
+
+  setWordBatchSize(value: number): number {
+    const batchSize = clampWordBatchSize(value);
+    this.db
+      .prepare(
+        `
+        INSERT INTO word_settings (key, value, updated_at)
+        VALUES ('batch_size', ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+      `
+      )
+      .run(String(batchSize));
+    return batchSize;
+  }
+
+  startWordSession(words: WordEntry[], scopeTag: string, mode: string, levelId: string | null = null) {
+    this.db.exec("BEGIN");
+    try {
+      const result = this.db
+        .prepare("INSERT INTO word_sessions (scope_tag, mode, level_id, word_count, status) VALUES (?, ?, ?, ?, 'in_progress')")
+        .run(scopeTag, mode, levelId, words.length);
+      const sessionId = Number(result.lastInsertRowid);
+      const insertItem = this.db.prepare("INSERT INTO word_session_items (session_id, word_id, item_no) VALUES (?, ?, ?)");
+      words.forEach((word, index) => insertItem.run(sessionId, word.id, index + 1));
+      this.db.exec("COMMIT");
+      return {
+        sessionId,
+        scopeTag,
+        mode,
+        levelId,
+        wordCount: words.length,
+        words: words.map((word, index) => ({ word, itemNo: index + 1 }))
+      };
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
+  startOrResumeWordSession(words: WordEntry[], scopeTag: string, mode: string, levelId: string | null, threshold: number) {
+    let active = this.db
+      .prepare(
+        `
+        SELECT *
+        FROM word_sessions
+        WHERE scope_tag = ?
+          AND mode = ?
+          AND COALESCE(level_id, '') = COALESCE(?, '')
+          AND status = 'in_progress'
+          AND id > COALESCE((
+            SELECT MAX(id)
+            FROM word_sessions
+            WHERE scope_tag = ?
+              AND mode = ?
+              AND COALESCE(level_id, '') = COALESCE(?, '')
+              AND status = 'completed'
+          ), 0)
+        ORDER BY id DESC
+        LIMIT 1
+      `
+      )
+      .get(scopeTag, mode, levelId, scopeTag, mode, levelId) as WordSessionRow | undefined;
+
+    if (!active && levelId) {
+      const legacy = this.findLegacyWordLevelSession(scopeTag, mode, words);
+      if (legacy) {
+        this.db.prepare("UPDATE word_sessions SET level_id = ? WHERE id = ?").run(levelId, legacy.id);
+        active = { ...legacy, level_id: levelId };
+      }
+    }
+
+    if (active) {
+      const completed = this.completeWordSessionIfReady(active.id, threshold);
+      if (!completed) {
+        return {
+          sessionId: active.id,
+          scopeTag,
+          mode,
+          levelId,
+          wordCount: words.length,
+          words: words.map((word, index) => ({ word, itemNo: index + 1 })),
+          resumed: true,
+          resume: this.getWordSessionResume(active.id, threshold)
+        };
+      }
+    }
+
+    return {
+      ...this.startWordSession(words, scopeTag, mode, levelId),
+      resumed: false,
+      resume: null
+    };
+  }
+
+  private findLegacyWordLevelSession(scopeTag: string, mode: string, words: WordEntry[]): WordSessionRow | null {
+    const rows = this.db
+      .prepare(
+        `
+        SELECT *
+        FROM word_sessions
+        WHERE scope_tag = ?
+          AND mode = ?
+          AND level_id IS NULL
+          AND status = 'in_progress'
+        ORDER BY id DESC
+      `
+      )
+      .all(scopeTag, mode) as WordSessionRow[];
+    const targetWordIds = words.map((word) => word.id).join("\u001f");
+    for (const row of rows) {
+      if (this.getWordSessionWordIds(row.id).join("\u001f") === targetWordIds) return row;
+    }
+    return null;
+  }
+
+  getWordSession(sessionId: number): WordSessionRow | null {
+    return (this.db.prepare("SELECT * FROM word_sessions WHERE id = ?").get(sessionId) as WordSessionRow | undefined) || null;
+  }
+
+  getWordSessionWordIds(sessionId: number): string[] {
+    const rows = this.db
+      .prepare("SELECT word_id FROM word_session_items WHERE session_id = ? ORDER BY item_no")
+      .all(sessionId) as Array<{ word_id: string }>;
+    return rows.map((row) => row.word_id);
+  }
+
+  getWordSessionResume(sessionId: number, threshold: number) {
+    const items = this.db
+      .prepare("SELECT word_id, item_no FROM word_session_items WHERE session_id = ? ORDER BY item_no")
+      .all(sessionId) as Array<{ word_id: string; item_no: number }>;
+    const latestRows = this.latestWordSessionSubmissionRows(sessionId);
+    for (const item of items) {
+      const phases = latestRows.get(item.word_id);
+      const wordRow = phases?.get("word");
+      if (!wordRow) return { itemNo: item.item_no, phase: "word" as const };
+      if (wordRow.score >= threshold) {
+        const exampleRow = phases?.get("example");
+        if (!exampleRow) {
+          return {
+            itemNo: item.item_no,
+            phase: "example" as const,
+            wordAnswer: wordRow.word_answer || "",
+            meaningAnswers: parseJsonObject(wordRow.meaning_answer_json),
+            wordGrade: wordSubmissionRowToGrade(wordRow)
+          };
+        }
+      }
+    }
+    return { itemNo: items.length + 1, phase: "complete" as const };
+  }
+
+  private latestWordSessionSubmissionRows(sessionId: number): Map<string, Map<WordSubmissionPhase, WordSubmissionRow>> {
+    const rows = this.db
+      .prepare(
+        `
+        SELECT
+          ws.word_id, ws.phase, ws.word_answer, ws.meaning_answer_json, ws.answer, ws.score, ws.level,
+          ws.encouragement, ws.issues_json, ws.suggestion, ws.improved_answer, ws.reference_answer, ws.needs_review
+        FROM word_submissions ws
+        INNER JOIN (
+          SELECT word_id, phase, MAX(id) AS id
+          FROM word_submissions
+          WHERE session_id = ?
+          GROUP BY word_id, phase
+        ) latest ON latest.id = ws.id
+      `
+      )
+      .all(sessionId) as WordSubmissionRow[];
+    const byWord = new Map<string, Map<WordSubmissionPhase, WordSubmissionRow>>();
+    for (const row of rows) {
+      const phases = byWord.get(row.word_id) || new Map<WordSubmissionPhase, WordSubmissionRow>();
+      phases.set(row.phase, row);
+      byWord.set(row.word_id, phases);
+    }
+    return byWord;
+  }
+
+  saveWordSubmission(input: {
+    sessionId: number | null;
+    wordId: string;
+    phase: WordSubmissionPhase;
+    wordAnswer?: string | null;
+    meaningAnswers?: Record<string, string>;
+    answer: string;
+    grade: GradeResult;
+  }): void {
+    this.db
+      .prepare(`
+        INSERT INTO word_submissions (
+          session_id, word_id, phase, word_answer, meaning_answer_json, answer, score, level,
+          encouragement, issues_json, suggestion, improved_answer, reference_answer, needs_review,
+          raw_ai, error_summary
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      .run(
+        input.sessionId,
+        input.wordId,
+        input.phase,
+        input.wordAnswer || null,
+        JSON.stringify(input.meaningAnswers || {}),
+        input.answer,
+        input.grade.score,
+        input.grade.level,
+        input.grade.encouragement,
+        JSON.stringify(input.grade.issues),
+        input.grade.suggestion,
+        input.grade.improvedAnswer,
+        input.grade.referenceAnswer,
+        input.grade.needsReview ? 1 : 0,
+        input.grade.rawAi || null,
+        input.grade.errorSummary || null
+      );
+  }
+
+  latestWordPhaseScore(wordId: string, phase: WordSubmissionPhase): number | null {
+    const row = this.db
+      .prepare("SELECT score FROM word_submissions WHERE word_id = ? AND phase = ? ORDER BY id DESC LIMIT 1")
+      .get(wordId, phase) as { score: number } | undefined;
+    return row?.score ?? null;
+  }
+
+  completeWordSessionIfReady(sessionId: number, threshold: number): boolean {
+    const session = this.getWordSession(sessionId);
+    if (!session || session.status === "completed") return Boolean(session?.status === "completed");
+
+    const wordIds = this.getWordSessionWordIds(sessionId);
+    if (wordIds.length === 0) return false;
+
+    for (const wordId of wordIds) {
+      const wordScore = this.latestWordPhaseScore(wordId, "word");
+      if (wordScore === null) return false;
+      if (wordScore < threshold) continue;
+      const exampleScore = this.latestWordPhaseScore(wordId, "example");
+      if (exampleScore === null) return false;
+    }
+
+    this.db.prepare("UPDATE word_sessions SET status = 'completed', completed_at = CURRENT_TIMESTAMP WHERE id = ?").run(sessionId);
+    return true;
+  }
+
+  masteredWordIds(threshold: number): Set<string> {
+    const rows = this.db
+      .prepare(`
+        WITH latest AS (
+          SELECT ws.word_id, ws.phase, ws.score
+          FROM word_submissions ws
+          INNER JOIN (
+            SELECT word_id, phase, MAX(id) AS id
+            FROM word_submissions
+            GROUP BY word_id, phase
+          ) latest ON latest.id = ws.id
+        )
+        SELECT word.word_id
+        FROM latest word
+        INNER JOIN latest example ON example.word_id = word.word_id AND example.phase = 'example'
+        WHERE word.phase = 'word' AND word.score >= ? AND example.score >= ?
+      `)
+      .all(threshold, threshold) as Array<{ word_id: string }>;
+    return new Set(rows.map((row) => row.word_id));
+  }
+
+  practicedWordIds(): Set<string> {
+    const rows = this.db
+      .prepare("SELECT DISTINCT word_id FROM word_submissions")
+      .all() as Array<{ word_id: string }>;
+    return new Set(rows.map((row) => row.word_id));
+  }
+
+  latestWordReviewRows(threshold: number): WordReviewRow[] {
+    return this.db
+      .prepare(`
+        WITH latest AS (
+          SELECT ws.word_id, ws.phase, ws.score, ws.issues_json, ws.created_at
+          FROM word_submissions ws
+          INNER JOIN (
+            SELECT word_id, phase, MAX(id) AS id
+            FROM word_submissions
+            GROUP BY word_id, phase
+          ) latest ON latest.id = ws.id
+        ),
+        failing AS (
+          SELECT *
+          FROM latest
+          WHERE score < ?
+        ),
+        ranked AS (
+          SELECT
+            word_id,
+            phase AS latest_phase,
+            score AS latest_score,
+            issues_json AS latest_issues_json,
+            created_at AS latest_at,
+            ROW_NUMBER() OVER (PARTITION BY word_id ORDER BY datetime(created_at) DESC) AS rank
+          FROM failing
+        )
+        SELECT word_id, latest_phase, latest_score, latest_issues_json, latest_at
+        FROM ranked
+        WHERE rank = 1
+        ORDER BY latest_score ASC, datetime(latest_at) ASC
+      `)
+      .all(threshold) as WordReviewRow[];
+  }
+
+  getWordProgress(totalWords: number, threshold: number, wordIds?: string[]): WordProgressStats {
+    const scope = scopedWordClause(wordIds);
+    const practicedRow = this.db
+      .prepare(`SELECT COUNT(DISTINCT word_id) AS count FROM word_submissions${scope.where}`)
+      .get(...scope.params) as { count: number };
+    const sessionRow = this.db.prepare("SELECT COUNT(*) AS count FROM word_sessions").get() as { count: number };
+    const submissionRow = this.db
+      .prepare(`SELECT COUNT(*) AS count FROM word_submissions${scope.where}`)
+      .get(...scope.params) as { count: number };
+    const scopedIds = wordIds ? new Set(wordIds) : null;
+    const mastered = this.masteredWordIds(threshold);
+    const reviewRows = this.latestWordReviewRows(threshold);
+    return {
+      totalWords,
+      practicedWords: practicedRow.count,
+      masteredWords: scopedIds ? [...mastered].filter((wordId) => scopedIds.has(wordId)).length : mastered.size,
+      reviewWords: scopedIds ? reviewRows.filter((row) => scopedIds.has(row.word_id)).length : reviewRows.length,
+      sessionCount: sessionRow.count,
+      submissionCount: submissionRow.count
+    };
+  }
+}
+
+function scopedWordClause(wordIds?: string[]): { where: string; params: string[] } {
+  if (!wordIds) return { where: "", params: [] };
+  if (wordIds.length === 0) return { where: " WHERE 1 = 0", params: [] };
+  return {
+    where: ` WHERE word_id IN (${wordIds.map(() => "?").join(",")})`,
+    params: wordIds
+  };
+}
+
+function parseJsonObject(raw: string): Record<string, string> {
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    return Object.fromEntries(Object.entries(parsed).map(([key, value]) => [key, String(value || "")]));
+  } catch {
+    return {};
+  }
+}
+
+function wordSubmissionRowToGrade(row: WordSubmissionRow): GradeResult {
+  return {
+    score: row.score,
+    level: row.level,
+    encouragement: row.encouragement,
+    issues: parseIssues(row.issues_json),
+    suggestion: row.suggestion,
+    improvedAnswer: row.improved_answer,
+    referenceAnswer: row.reference_answer,
+    needsReview: Boolean(row.needs_review)
+  };
+}
+
+function parseIssues(raw: string): string[] {
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map((issue) => String(issue)).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
 }
 
 export function computeDayProgress(latestRows: SubmissionRow[], dayQuestionCounts: Map<string, number>, reviewThreshold = 80) {
@@ -544,4 +1383,9 @@ export function computeDayProgress(latestRows: SubmissionRow[], dayQuestionCount
 
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
+}
+
+function clampWordBatchSize(value: number): number {
+  if (!Number.isFinite(value)) return 5;
+  return Math.max(1, Math.min(30, Math.round(value)));
 }

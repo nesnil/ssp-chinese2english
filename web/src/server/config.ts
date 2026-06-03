@@ -12,7 +12,9 @@ export function loadConfig(): AppConfig {
   return {
     port: numberFromEnv("PORT", 3000),
     databasePath: process.env.DATABASE_PATH || "/app/data/c2e.sqlite",
+    wordAudioRoot: process.env.WORD_AUDIO_ROOT,
     appPassword: process.env.APP_PASSWORD,
+    adminPassword: process.env.ADMIN_PASSWORD,
     sessionSecret: process.env.SESSION_SECRET,
     deepseekBaseUrl: process.env.DEEPSEEK_BASE_URL,
     deepseekApiKey: process.env.DEEPSEEK_API_KEY,

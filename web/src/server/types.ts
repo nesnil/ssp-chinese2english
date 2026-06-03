@@ -40,10 +40,59 @@ export type GradeResult = {
   errorSummary?: string;
 };
 
+export type WordDefinition = {
+  phonetic: string;
+  partOfSpeech: string;
+  meaning: string;
+};
+
+export type WordExample = {
+  english: string;
+  chinese: string;
+};
+
+export type WordEntry = {
+  id: string;
+  sourceId: string;
+  name: string;
+  sortIndex: number;
+  definitions: WordDefinition[];
+  examples: WordExample[];
+  similar: Array<{ id: string; name: string }>;
+  tags: string[];
+  audioPath: string | null;
+};
+
+export type WordTagSummary = {
+  id: string;
+  label: string;
+  systemGenerated: boolean;
+  count: number;
+};
+
+export type WordBank = {
+  version: number;
+  generatedAt: string;
+  source: string;
+  zhongkao?: {
+    source: string;
+    extractedWordRows: number;
+    matchedSourceRows: number | null;
+    unmatchedSourceRows: number | null;
+  };
+  totalWords: number;
+  totalAudioFiles: number;
+  missingAudio: string[];
+  tags: WordTagSummary[];
+  words: WordEntry[];
+};
+
 export type AppConfig = {
   port: number;
   databasePath: string;
+  wordAudioRoot?: string;
   appPassword?: string;
+  adminPassword?: string;
   sessionSecret?: string;
   deepseekBaseUrl?: string;
   deepseekApiKey?: string;
