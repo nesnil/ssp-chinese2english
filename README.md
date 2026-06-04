@@ -48,7 +48,7 @@
 
 **鉴权** 家庭口令登录（`POST /api/login`）签发 HMAC 签名的 httpOnly Cookie；`requireAuth` 守卫所有 `/api/*`（除 health 与登录路由）。管理员口令走 `POST /api/admin/login`，在会话上标记 `role='admin'`，`requireAdmin` 守卫 `/api/admin/*`。
 
-更详细的架构说明见 [`CLAUDE.md`](CLAUDE.md)。
+更详细的架构与约定说明保存在仓库内的开发文档中（含部署坐标，未公开）。
 
 ---
 
@@ -61,8 +61,6 @@
 | `middle-school-wordlist/` | 单词语料（`data/` JSON + `sound/` 发音 mp3）。|
 | `imgs/`、`pdf/`、`tools/`、`scripts/`、`research/` | 数据准备流水线（非运行时）。|
 | `Dockerfile`、`docker-compose.yml` | 容器化部署配置。|
-| `CLAUDE.md` | 面向 AI 助手的架构与约定说明。|
-| `AGENTS.md`、`DEPLOY.md` | 项目说明与手动发布流程。|
 
 ---
 
@@ -111,16 +109,16 @@ docker compose up -d --build
 
 ## 云端部署
 
-若部署在某个**子路径**下（由 Nginx 反代），客户端**必须**用对应子路径构建，否则资源/接口 404。以 `/c2e/` 为例：
+若部署在某个**子路径**下（由 Nginx 反代），客户端**必须**用对应子路径构建，否则资源/接口 404。以 `/subpath/` 为例：
 
 ```bash
 cd web
-VITE_BASE_PATH=/c2e/ npm run build
+VITE_BASE_PATH=/subpath/ npm run build
 cd ..
-docker build --build-arg VITE_BASE_PATH=/c2e/ -t c2e-practice:latest .
+docker build --build-arg VITE_BASE_PATH=/subpath/ -t c2e-practice:latest .
 ```
 
-完整发布流程（rsync 同步、构建重启、Nginx 配置、数据迁移、健康检查）见 [`DEPLOY.md`](DEPLOY.md) 与 [`AGENTS.md`](AGENTS.md)。**正常发布切勿同步或覆盖远端的 `data/` 与 `.env`。**
+部署到根路径时用 `VITE_BASE_PATH=/`。**正常发布切勿同步或覆盖运行环境里的 `data/` 与 `.env`。**
 
 ---
 
@@ -152,10 +150,12 @@ docker build --build-arg VITE_BASE_PATH=/c2e/ -t c2e-practice:latest .
 
 ## 版本号
 
-顶栏显示的版本号来自**最近的 git tag**（构建时由 `web/vite.config.ts` 执行 `git describe` 注入；无 tag 时回退到 `package.json` version）。发布新版本：
+顶栏显示的版本号在构建时由 `web/vite.config.ts` 注入，解析优先级：环境变量 `APP_VERSION` → 最近的 git tag（`git describe`）→ `package.json` version。发布新版本时同时更新二者最稳妥：
 
 ```bash
-git tag -a v1.0.2 -m "..."
+# 1) 更新 web/package.json 的 "version"（无 git 信息的环境以此为准）
+# 2) 打 tag 保持一致
+git tag -a v1.1.1 -m "..."
 git push origin main --tags
 # 重新构建即可，前端自动显示新版本号
 ```

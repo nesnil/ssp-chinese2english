@@ -328,7 +328,7 @@ function App() {
       }}
     >
       {error ? <div className="notice danger">{error}</div> : null}
-      <HomeTabs active={homeMode} onChange={setHomeMode} wordProgress={wordProgress} />
+      <HomeTabs active={homeMode} onChange={setHomeMode} progress={progress} wordProgress={wordProgress} />
       {homeMode === "sentences" ? (
         <Dashboard
           progress={progress}
@@ -446,10 +446,12 @@ function LoginScreen({ onLogin, onOpenAdmin }: { onLogin: () => void; onOpenAdmi
 function HomeTabs({
   active,
   onChange,
+  progress,
   wordProgress
 }: {
   active: "sentences" | "words";
   onChange: (value: "sentences" | "words") => void;
+  progress: Progress | null;
   wordProgress: WordProgress | null;
 }) {
   return (
@@ -457,6 +459,7 @@ function HomeTabs({
       <button className={active === "sentences" ? "active" : ""} onClick={() => onChange("sentences")}>
         <Flag size={19} />
         中译英
+        {progress?.reviewCount ? <span>{progress.reviewCount}</span> : null}
       </button>
       <button className={active === "words" ? "active" : ""} onClick={() => onChange("words")}>
         <BookOpen size={19} />
@@ -682,7 +685,7 @@ function SeasonMap({ season, onStartDay }: { season: SeasonCatalog; onStartDay: 
   return (
     <article className="season-map">
       <div className="season-header">
-        <h3>S{season.season}</h3>
+        <h3>第 {season.season} 季</h3>
         <span>
           {season.dayCount} 天 · {season.questionCount} 题
         </span>
@@ -1210,7 +1213,11 @@ function WordPracticeScreen({
   const word = words[current];
   const threshold = progress?.threshold || 80;
   const wordPassed = Boolean(wordGrade && wordGrade.score >= threshold);
-  const practiceStarted = Boolean(activeLevelId);
+  const practiceStarted = Boolean(sessionId);
+  const reviewing = mode === "review";
+  const wordMasteredPercent = ((progress?.masteredWords || 0) / (progress?.totalWords || 1650)) * 100;
+  const wordMasteredPercentLabel =
+    wordMasteredPercent > 0 && wordMasteredPercent < 1 ? `${wordMasteredPercent.toFixed(1)}%` : `${Math.round(wordMasteredPercent)}%`;
   const complete = !loading && practiceStarted && words.length > 0 && current >= words.length;
   const empty = !loading && practiceStarted && words.length === 0;
 
@@ -1356,18 +1363,32 @@ function WordPracticeScreen({
           </div>
         </header>
       ) : (
-        <header className="word-home-header">
+        <header className="word-home-header hero-band">
           <div>
             <span className="eyebrow">
               <BookOpen size={16} />
               上海初中英语考纲词汇
             </span>
             <h1>听发音，默写单词和例句</h1>
+            <p className="word-hero-sub">
+              已掌握 {progress?.masteredWords || 0} / {progress?.totalWords || 1650} 个词
+              {progress?.reviewWords ? ` · 待复习 ${progress.reviewWords} 个` : ""}
+            </p>
+            {progress?.reviewWords ? (
+              <button className="primary-button wide review" onClick={() => startSession("review", tag, null)}>
+                <RotateCcw size={20} />
+                复习错词 {progress.reviewWords}
+                <ArrowRight size={20} />
+              </button>
+            ) : null}
           </div>
-          <p>
-            已掌握 {progress?.masteredWords || 0}/{progress?.totalWords || 1650}，待复习{" "}
-            {progress?.reviewWords || 0}
-          </p>
+          <div
+            className="progress-ring word-progress-ring"
+            style={{ "--progress": `${wordMasteredPercent}%` } as React.CSSProperties}
+          >
+            <strong>{wordMasteredPercentLabel}</strong>
+            <span>已掌握</span>
+          </div>
         </header>
       )}
 
@@ -1415,7 +1436,10 @@ function WordPracticeScreen({
       ) : word ? (
         <section className="question-card word-card">
           <div className="question-topline">
-            <span>{activeLevelId?.toUpperCase()} · 第 {word.itemNo} 个词</span>
+            <span>
+              {reviewing ? "错词复习" : activeLevelId?.toUpperCase()}
+              {reviewing && activeLevelId ? ` · ${activeLevelId.toUpperCase()}` : ""} · 第 {word.itemNo} 个词
+            </span>
             <b>{Math.min(current + 1, words.length)}/{words.length}</b>
           </div>
 

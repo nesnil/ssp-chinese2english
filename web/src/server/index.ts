@@ -322,14 +322,17 @@ app.post("/api/word-sessions/start", requireAuth, (req, res) => {
   const mode = req.body?.mode === "review" ? "review" : "new";
   const levelId = req.body?.levelId ? String(req.body.levelId) : null;
   const limit = database.getWordBatchSize();
-  const words = levelId ? selectWordLevelWords(levelId) : selectWordSessionWords(tag, mode, limit);
+  const words = levelId ? selectWordLevelWords(levelId, mode) : selectWordSessionWords(tag, mode, limit);
   if (words.length === 0) {
-    res.status(404).json({ error: mode === "review" ? "暂无需要复习的单词。" : "没有找到可练习的单词。" });
+    res.status(404).json({ error: mode === "review" ? "这一关暂时没有需要复习的单词了。" : "没有找到可练习的单词。" });
     return;
   }
 
+  // 复习会话单独成会话（mode='review'），与整关重练（mode='level'）的进度互不覆盖。
   const session = levelId
-    ? database.startOrResumeWordSession(words, tag, "level", levelId, config.reviewScoreThreshold)
+    ? mode === "review"
+      ? database.startOrResumeWordSession(words, tag, "review", levelId, config.reviewScoreThreshold)
+      : database.startOrResumeWordSession(words, tag, "level", levelId, config.reviewScoreThreshold)
     : database.startWordSession(words, tag, mode);
   const resume = ("resume" in session ? session.resume : null) as WordSessionResume | null;
   const resumed = "resumed" in session ? session.resumed : false;
@@ -644,12 +647,20 @@ function buildWordLevelGroups() {
   }));
 }
 
-function selectWordLevelWords(levelId: string): WordEntry[] {
+function selectWordLevelWords(levelId: string, mode: "new" | "review" = "new"): WordEntry[] {
+  let levelWords: WordEntry[] = [];
   for (const group of getWordLevelChunks()) {
     const level = group.levels.find((item) => item.id === levelId);
-    if (level) return level.words;
+    if (level) {
+      levelWords = level.words;
+      break;
+    }
   }
-  return [];
+  if (mode !== "review") return levelWords;
+
+  // 复习模式：只保留该关里最新分低于阈值的错词。
+  const reviewIds = new Set(database.latestWordReviewRows(config.reviewScoreThreshold).map((row) => row.word_id));
+  return levelWords.filter((word) => reviewIds.has(word.id));
 }
 
 function getWordLevelChunks() {

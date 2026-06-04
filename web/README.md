@@ -45,10 +45,10 @@ http://localhost:3000
 VITE_BASE_PATH=/ npm run build
 ```
 
-部署到 `https://example.com/app/` 时使用：
+部署到子路径（例如 `/subpath/`）时使用：
 
 ```bash
-VITE_BASE_PATH=/c2e/ npm run build
+VITE_BASE_PATH=/subpath/ npm run build
 ```
 
 ## 测试
