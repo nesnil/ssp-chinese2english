@@ -121,31 +121,38 @@ export async function gradeWordRecall(
   );
 }
 
-export async function gradeExampleRecall(config: AppConfig, word: WordEntry, answer: string): Promise<GradeResult> {
-  const example = word.examples[0] || { english: "", chinese: "" };
+export async function gradeExampleRecall(config: AppConfig, word: WordEntry, answers: string[]): Promise<GradeResult> {
+  const examples = word.examples.length ? word.examples : [{ english: "", chinese: "" }];
+  // 把每句的中文、参考英文、学生答案配对，让 AI 一次综合批改、给一个总分。
+  const items = examples.map((example, index) => ({
+    no: index + 1,
+    chineseExample: example.chinese,
+    referenceAnswer: example.english,
+    studentAnswer: (answers[index] || "").trim()
+  }));
+  const referenceAnswer = examples.map((example) => example.english).filter(Boolean).join(" / ");
+
   return gradeWithAi(
     config,
     [
       {
         role: "system",
         content:
-          "你是一位鼓励型初中英语例句默写老师。请严格输出 JSON，不要 Markdown。批改例句默写时，允许轻微大小写和标点差异，重点看核心意思、关键词、语法结构、时态和完整度。没有满分时，先鼓励，再指出最关键的问题。"
+          "你是一位鼓励型初中英语例句默写老师。请严格输出 JSON，不要 Markdown。这位同学一次默写了这个单词的多句例句，请综合所有例句给一个总分（0-100），允许轻微大小写和标点差异，重点看每句的核心意思、关键词、语法结构、时态和完整度。只有一句时正常批改；有多句时：issues 每条以“第N句：”开头分别指出问题，suggestion 也按句给建议，没问题的句子无需提及。没有满分时，先鼓励，再指出最关键的问题。"
       },
       {
         role: "user",
         content: JSON.stringify({
-          task: "批改英文例句默写",
+          task: "综合批改一个单词的多句例句默写",
           word: word.name,
-          chineseExample: example.chinese,
-          referenceAnswer: example.english,
-          studentAnswer: answer,
+          sentences: items,
           outputSchema: gradeOutputSchema()
         })
       }
     ],
-    example.english,
+    referenceAnswer,
     config.reviewScoreThreshold,
-    "重点比较例句主干、关键词、语法和完整度。"
+    "重点比较每句的主干、关键词、语法和完整度。"
   );
 }
 

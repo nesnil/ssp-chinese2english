@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_BASE_PATH: "${VITE_BASE_PATH:-/}"
+        APP_VERSION: "${APP_VERSION:-}"
     image: c2e-practice:latest
     ports:
       - "${C2E_PORT_BIND:-3000:3000}"

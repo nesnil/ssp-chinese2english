@@ -572,6 +572,18 @@ button {
   font-weight: 900;
 }
 
+.day-node em.score {
+  align-items: baseline;
+}
+
+.day-node em.score i {
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 900;
+  margin-left: 1px;
+  opacity: 0.75;
+}
+
 .day-node em {
   position: absolute;
   top: 6px;
@@ -816,14 +828,19 @@ button {
 }
 
 .word-level-grid {
-  grid-template-columns: repeat(auto-fill, minmax(58px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(74px, 1fr));
   gap: 10px;
 }
 
 .word-level-node {
-  min-height: 62px;
-  border-radius: 20px;
-  padding: 9px 6px 7px;
+  position: relative;
+  min-height: 76px;
+  border-radius: 25px;
+  padding: 12px 8px 9px;
+}
+
+.word-level-no {
+  font-size: 20px;
 }
 
 .review-link {
@@ -1062,6 +1079,23 @@ button {
 
 .example-panel textarea {
   min-height: clamp(180px, 24vh, 280px);
+  width: 100%;
+}
+
+.example-item + .example-item {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 2px dashed #e2e9f3;
+}
+
+/* 多句时缩短每个输入框，避免整页过长（单句保持原高度） */
+.example-panel .example-item:not(:only-child) textarea {
+  min-height: clamp(110px, 14vh, 150px);
+}
+
+.example-no {
+  color: #1f6fd6;
+  margin-right: 8px;
 }
 
 .review-center-card {
@@ -1413,42 +1447,71 @@ button.history-card {
 
 .grading-orbit {
   position: relative;
-  width: 86px;
-  height: 86px;
+  width: 104px;
+  height: 104px;
+  display: grid;
+  place-items: center;
+}
+
+/* 旋转的渐变光环 */
+.grading-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, #27a8ff, #54c76f, #ffd45a, #27a8ff);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  opacity: 0.85;
+  animation: spin 2.6s linear infinite;
+}
+
+/* 中心渐变圆 + 呼吸脉动 */
+.grading-core {
+  width: 70px;
+  height: 70px;
   display: grid;
   place-items: center;
   border-radius: 50%;
   color: #ffffff;
-  background: linear-gradient(135deg, #27a8ff, #54c76f);
-  box-shadow: 0 8px 0 #168c4a;
-  animation: floaty 1.3s ease-in-out infinite;
+  background: linear-gradient(135deg, #2aa3ff, #54c76f);
+  box-shadow: 0 8px 18px rgba(39, 130, 180, 0.4);
+  animation: grading-pulse 1.6s ease-in-out infinite;
 }
 
-.grading-orbit span {
+.grading-core svg {
+  animation: grading-twinkle 1.8s ease-in-out infinite;
+}
+
+/* 真正绕圈的卫星点 */
+.grading-satellites {
   position: absolute;
-  width: 14px;
-  height: 14px;
+  inset: 0;
+  animation: spin 3.2s linear infinite;
+}
+
+.grading-satellites span {
+  position: absolute;
+  top: -3px;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
   border-radius: 50%;
   background: #ffd45a;
-  box-shadow: 0 0 0 5px rgba(255, 212, 90, 0.24);
-  animation: orbit-dot 1.5s ease-in-out infinite;
+  box-shadow: 0 0 0 4px rgba(255, 212, 90, 0.22);
+  transform-origin: 6px 55px;
 }
 
-.grading-orbit span:nth-child(2) {
-  top: 4px;
-  right: 12px;
+.grading-satellites span:nth-child(2) {
+  background: #2aa3ff;
+  box-shadow: 0 0 0 4px rgba(42, 163, 255, 0.2);
+  transform: rotate(120deg);
 }
 
-.grading-orbit span:nth-child(3) {
-  right: 0;
-  bottom: 20px;
-  animation-delay: 0.16s;
-}
-
-.grading-orbit span:nth-child(4) {
-  left: 9px;
-  bottom: 9px;
-  animation-delay: 0.32s;
+.grading-satellites span:nth-child(3) {
+  background: #54c76f;
+  box-shadow: 0 0 0 4px rgba(84, 199, 111, 0.2);
+  transform: rotate(240deg);
 }
 
 .grading-card strong {
@@ -1532,6 +1595,23 @@ button.history-card {
   line-height: 1.6;
 }
 
+.answer-lines {
+  color: #465774;
+  line-height: 1.6;
+}
+
+.answer-lines .answer-line {
+  display: block;
+  padding-left: 4px;
+}
+
+.answer-lines .answer-line i {
+  color: #1f6fd6;
+  font-style: normal;
+  font-weight: 900;
+  margin-right: 6px;
+}
+
 .feedback-body ul {
   padding-left: 22px;
 }
@@ -1605,6 +1685,28 @@ button.history-card {
 @keyframes grading-bounce {
   50% {
     transform: translateY(-7px);
+  }
+}
+
+@keyframes grading-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 8px 18px rgba(39, 130, 180, 0.4);
+  }
+  50% {
+    transform: scale(1.06);
+    box-shadow: 0 10px 24px rgba(39, 130, 180, 0.5);
+  }
+}
+
+@keyframes grading-twinkle {
+  0%, 100% {
+    transform: rotate(0deg) scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: rotate(18deg) scale(1.12);
+    opacity: 0.88;
   }
 }
 

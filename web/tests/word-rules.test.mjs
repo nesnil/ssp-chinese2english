@@ -149,3 +149,21 @@ test("unfinished word level sessions resume at the next incomplete phase", () =>
     { itemNo: 2, phase: "word" }
   );
 });
+
+test("starting and leaving a mastered word level does not count as a completed attempt", () => {
+  const database = makeDatabase();
+  const words = [word("ability"), word("able")];
+
+  submit(database, { wordId: "ability", phase: "word", score: 90 });
+  submit(database, { wordId: "ability", phase: "example", score: 92 });
+  submit(database, { wordId: "able", phase: "word", score: 91 });
+  submit(database, { wordId: "able", phase: "example", score: 93 });
+
+  const session = database.startOrResumeWordSession(words, "shanghai-zhongkao", "level", "a-1", 80);
+  assert.equal(database.completeWordSessionIfReady(session.sessionId, 80), false);
+
+  const resumed = database.startOrResumeWordSession(words, "shanghai-zhongkao", "level", "a-1", 80);
+  assert.equal(resumed.sessionId, session.sessionId);
+  assert.equal(resumed.resumed, true);
+  assert.equal(database.wordLevelAttemptStats().get("a-1"), undefined);
+});

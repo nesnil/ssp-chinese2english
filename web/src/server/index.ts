@@ -380,12 +380,12 @@ app.post("/api/word-submissions", requireAuth, async (req, res, next) => {
 
     const meaningAnswers = normalizeMeaningAnswers(req.body?.meaningAnswers);
     const wordAnswer = String(req.body?.wordAnswer || "").trim();
-    const exampleAnswer = String(req.body?.answer || "").trim();
+    const exampleAnswers = normalizeExampleAnswers(req.body?.exampleAnswers, req.body?.answer);
     if (phase === "word" && !wordAnswer) {
       res.status(400).json({ error: "请先默写英文单词。" });
       return;
     }
-    if (phase === "example" && !exampleAnswer) {
+    if (phase === "example" && !exampleAnswers.some((entry) => entry.trim())) {
       res.status(400).json({ error: "请先默写英文例句。" });
       return;
     }
@@ -393,14 +393,14 @@ app.post("/api/word-submissions", requireAuth, async (req, res, next) => {
     const grade =
       phase === "word"
         ? await gradeWordRecall(config, word, { wordAnswer, meaningAnswers })
-        : await gradeExampleRecall(config, word, exampleAnswer);
+        : await gradeExampleRecall(config, word, exampleAnswers);
     database.saveWordSubmission({
       sessionId,
       wordId,
       phase,
       wordAnswer: phase === "word" ? wordAnswer : null,
       meaningAnswers,
-      answer: phase === "word" ? JSON.stringify({ wordAnswer, meaningAnswers }) : exampleAnswer,
+      answer: phase === "word" ? JSON.stringify({ wordAnswer, meaningAnswers }) : JSON.stringify({ exampleAnswers }),
       grade
     });
     const sessionComplete = sessionId ? database.completeWordSessionIfReady(sessionId, config.reviewScoreThreshold) : false;
@@ -621,6 +621,7 @@ function buildWordLevelGroups() {
   const practiced = database.practicedWordIds();
   const mastered = database.masteredWordIds(config.reviewScoreThreshold);
   const reviewIds = new Set(database.latestWordReviewRows(config.reviewScoreThreshold).map((row) => row.word_id));
+  const attemptStats = database.wordLevelAttemptStats();
 
   return getWordLevelChunks().map((group) => ({
     letter: group.letter,
@@ -631,6 +632,7 @@ function buildWordLevelGroups() {
       const practicedCount = level.words.filter((word) => practiced.has(word.id)).length;
       const masteredCount = level.words.filter((word) => mastered.has(word.id)).length;
       const reviewCount = level.words.filter((word) => reviewIds.has(word.id)).length;
+      const stats = attemptStats.get(level.id);
       return {
         id: level.id,
         letter: group.letter,
@@ -639,6 +641,8 @@ function buildWordLevelGroups() {
         practicedCount,
         masteredCount,
         reviewCount,
+        attemptCount: stats?.attemptCount || 0,
+        bestAverageScore: stats?.bestAverageScore ?? null,
         status: reviewCount > 0 ? "review" : masteredCount === level.words.length ? "done" : practicedCount > 0 ? "active" : "fresh",
         firstWord: level.words[0]?.name || "",
         lastWord: level.words[level.words.length - 1]?.name || ""
@@ -721,4 +725,11 @@ function normalizeMeaningAnswers(value: unknown): Record<string, string> {
       .map(([key, entry]) => [String(key), String(entry || "").trim()])
       .filter(([, entry]) => entry)
   );
+}
+
+// 例句答案：优先用 exampleAnswers 数组（多句），兼容旧的单句 answer 字段。
+function normalizeExampleAnswers(value: unknown, legacyAnswer: unknown): string[] {
+  if (Array.isArray(value)) return value.map((entry) => String(entry || ""));
+  const single = String(legacyAnswer || "");
+  return single ? [single] : [];
 }

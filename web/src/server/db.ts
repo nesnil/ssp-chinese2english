@@ -324,6 +324,7 @@ export class AppDatabase {
     this.addColumnIfMissing("submissions", "attempt_id", "INTEGER");
     this.addColumnIfMissing("submissions", "mode", "TEXT NOT NULL DEFAULT 'day'");
     this.addColumnIfMissing("word_sessions", "level_id", "TEXT");
+    this.addColumnIfMissing("word_sessions", "average_score", "INTEGER");
     this.addColumnIfMissing("app_sessions", "role", "TEXT NOT NULL DEFAULT 'user'");
     this.db.exec("CREATE INDEX IF NOT EXISTS idx_submissions_attempt ON submissions(attempt_id, mode, question_no);");
     this.db.exec("CREATE INDEX IF NOT EXISTS idx_word_sessions_level ON word_sessions(scope_tag, mode, level_id, status, started_at DESC);");
@@ -1211,17 +1212,54 @@ export class AppDatabase {
 
     const wordIds = this.getWordSessionWordIds(sessionId);
     if (wordIds.length === 0) return false;
+    const latestRows = this.latestWordSessionSubmissionRows(sessionId);
 
     for (const wordId of wordIds) {
-      const wordScore = this.latestWordPhaseScore(wordId, "word");
-      if (wordScore === null) return false;
-      if (wordScore < threshold) continue;
-      const exampleScore = this.latestWordPhaseScore(wordId, "example");
-      if (exampleScore === null) return false;
+      const phases = latestRows.get(wordId);
+      const wordRow = phases?.get("word");
+      if (!wordRow) return false;
+      if (wordRow.score < threshold) continue;
+      const exampleRow = phases?.get("example");
+      if (!exampleRow) return false;
     }
 
-    this.db.prepare("UPDATE word_sessions SET status = 'completed', completed_at = CURRENT_TIMESTAMP WHERE id = ?").run(sessionId);
+    const averageScore = this.computeWordSessionAverage(sessionId);
+    this.db
+      .prepare("UPDATE word_sessions SET status = 'completed', average_score = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?")
+      .run(averageScore, sessionId);
     return true;
+  }
+
+  // 本次会话所有提交（单词阶段 + 例句阶段）的平均分。
+  private computeWordSessionAverage(sessionId: number): number | null {
+    const row = this.db
+      .prepare("SELECT ROUND(AVG(score)) AS avg FROM word_submissions WHERE session_id = ?")
+      .get(sessionId) as { avg: number | null };
+    return row.avg === null ? null : Number(row.avg);
+  }
+
+  // 按关卡聚合：完成次数 + 历史最高均分（MAX 自动跳过早期未记分的 null 会话）。
+  wordLevelAttemptStats(): Map<string, { attemptCount: number; bestAverageScore: number | null }> {
+    const rows = this.db
+      .prepare(
+        `
+        SELECT level_id,
+          COUNT(*) AS attempt_count,
+          MAX(average_score) AS best_average_score
+        FROM word_sessions
+        WHERE status = 'completed' AND level_id IS NOT NULL AND mode = 'level'
+        GROUP BY level_id
+      `
+      )
+      .all() as Array<{ level_id: string; attempt_count: number; best_average_score: number | null }>;
+    const result = new Map<string, { attemptCount: number; bestAverageScore: number | null }>();
+    for (const row of rows) {
+      result.set(row.level_id, {
+        attemptCount: row.attempt_count,
+        bestAverageScore: row.best_average_score
+      });
+    }
+    return result;
   }
 
   masteredWordIds(threshold: number): Set<string> {

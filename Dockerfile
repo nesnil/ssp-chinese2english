@@ -2,7 +2,9 @@ FROM node:22-bookworm-slim AS build
 
 WORKDIR /app
 ARG VITE_BASE_PATH=/
+ARG APP_VERSION=
 ENV VITE_BASE_PATH=${VITE_BASE_PATH}
+ENV APP_VERSION=${APP_VERSION}
 
 COPY web/package*.json ./web/
 WORKDIR /app/web

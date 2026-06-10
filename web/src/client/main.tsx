@@ -111,6 +111,8 @@ type WordLevel = {
   practicedCount: number;
   masteredCount: number;
   reviewCount: number;
+  attemptCount: number;
+  bestAverageScore: number | null;
   status: "fresh" | "active" | "done" | "review";
   firstWord: string;
   lastWord: string;
@@ -139,12 +141,14 @@ type WordSessionResume = {
   details?: WordDetails | null;
 };
 
+type WordExampleItem = { english: string; chinese: string };
 type WordDetails = {
   id: string;
   name: string;
   phonetics: string[];
   definitions: Array<{ phonetic: string; partOfSpeech: string; meaning: string }>;
-  example: { english: string; chinese: string };
+  example: WordExampleItem;
+  examples: WordExampleItem[];
   tags: string[];
   hasAudio: boolean;
 };
@@ -1185,7 +1189,7 @@ function WordPracticeScreen({
   const [wordAnswer, setWordAnswer] = useState("");
   const [meaningAnswers, setMeaningAnswers] = useState<Record<string, string>>({});
   const [wordGrade, setWordGrade] = useState<Grade | null>(null);
-  const [exampleAnswer, setExampleAnswer] = useState("");
+  const [exampleAnswers, setExampleAnswers] = useState<string[]>([]);
   const [exampleGrade, setExampleGrade] = useState<Grade | null>(null);
   const [details, setDetails] = useState<WordDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1270,7 +1274,7 @@ function WordPracticeScreen({
     setWordAnswer("");
     setMeaningAnswers({});
     setWordGrade(null);
-    setExampleAnswer("");
+    setExampleAnswers([]);
     setExampleGrade(null);
     setDetails(null);
   }
@@ -1312,7 +1316,8 @@ function WordPracticeScreen({
   }
 
   async function submitExample() {
-    if (!word || !exampleAnswer.trim()) return;
+    const exampleCount = details?.examples?.length || 0;
+    if (!word || !exampleAnswers.some((entry) => entry.trim())) return;
     setSubmitting(true);
     setError("");
     try {
@@ -1323,7 +1328,7 @@ function WordPracticeScreen({
           sessionId,
           wordId: word.id,
           phase: "example",
-          answer: exampleAnswer
+          exampleAnswers: Array.from({ length: exampleCount }, (_, index) => exampleAnswers[index] || "")
         })
       });
       setExampleGrade(response.grade);
@@ -1499,18 +1504,35 @@ function WordPracticeScreen({
           {wordPassed && details ? (
             <section className="example-panel">
               <div className="question-topline">
-                <span>例句默写</span>
+                <span>例句默写{details.examples.length > 1 ? ` · 共 ${details.examples.length} 句` : ""}</span>
                 <b>{threshold} 分过关</b>
               </div>
-              <h1>{details.example.chinese}</h1>
-              <textarea
-                value={exampleAnswer}
-                onChange={(event) => setExampleAnswer(event.target.value)}
-                placeholder="默写英文例句..."
-                disabled={Boolean(exampleGrade)}
-              />
+              {details.examples.map((example, index) => (
+                <div key={index} className="example-item">
+                  <h1>
+                    {details.examples.length > 1 ? <span className="example-no">{index + 1}.</span> : null}
+                    {example.chinese}
+                  </h1>
+                  <textarea
+                    value={exampleAnswers[index] || ""}
+                    onChange={(event) =>
+                      setExampleAnswers((prev) => {
+                        const next = [...prev];
+                        next[index] = event.target.value;
+                        return next;
+                      })
+                    }
+                    placeholder="默写英文例句..."
+                    disabled={Boolean(exampleGrade)}
+                  />
+                </div>
+              ))}
               {!exampleGrade ? (
-                <button className="primary-button submit" onClick={submitExample} disabled={submitting || !exampleAnswer.trim()}>
+                <button
+                  className="primary-button submit"
+                  onClick={submitExample}
+                  disabled={submitting || !exampleAnswers.some((entry) => entry.trim())}
+                >
                   {submitting ? <Loader2 className="spin" size={20} /> : <Sparkles size={20} />}
                   提交例句批改
                 </button>
@@ -1573,10 +1595,10 @@ function WordLevelMap({
                   onClick={() => onSelect(level.id)}
                   title={`${level.firstWord} - ${level.lastWord}`}
                 >
-                  {level.reviewCount ? <em>复</em> : null}
-                  <span>{level.status === "done" ? <Check size={18} /> : level.levelNo}</span>
+                  {level.bestAverageScore !== null ? <em>{level.bestAverageScore}</em> : null}
+                  <span className="word-level-no">{level.status === "done" ? <Check size={20} /> : level.levelNo}</span>
                   <small>
-                    {level.masteredCount}/{level.wordCount}
+                    {level.attemptCount > 0 ? `${level.attemptCount}次` : `${level.masteredCount}/${level.wordCount}`}
                   </small>
                 </button>
               ))}
@@ -1592,20 +1614,52 @@ function GradingOverlay() {
   return (
     <div className="grading-overlay" role="status" aria-live="polite" aria-label="AI 批改中">
       <div className="grading-card">
-        <div className="grading-orbit">
-          <Sparkles size={30} />
-          <span />
-          <span />
-          <span />
+        <div className="grading-orbit" aria-hidden="true">
+          <div className="grading-ring" />
+          <div className="grading-core">
+            <Sparkles size={28} />
+          </div>
+          <div className="grading-satellites">
+            <span />
+            <span />
+            <span />
+          </div>
         </div>
         <strong>AI 批改中</strong>
-        <p>正在认真看你的英文句子...</p>
+        <p>正在认真批改你的答案…</p>
         <div className="grading-dots" aria-hidden="true">
           <i />
           <i />
           <i />
         </div>
       </div>
+    </div>
+  );
+}
+
+// 参考/可改成：多句（用 " / " 分隔）时逐句分行编号，单句保持原样一行。
+function AnswerLines({ label, text }: { label: string; text: string }) {
+  const parts = text
+    .split(" / ")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length <= 1) {
+    return (
+      <p>
+        <b>{label}：</b>
+        {text}
+      </p>
+    );
+  }
+  return (
+    <div className="answer-lines">
+      <b>{label}：</b>
+      {parts.map((part, index) => (
+        <span key={index} className="answer-line">
+          <i>{index + 1}.</i>
+          {part}
+        </span>
+      ))}
     </div>
   );
 }
@@ -1643,8 +1697,8 @@ function Feedback({
           </ul>
         ) : null}
         {!isPerfect ? <p><b>建议：</b>{grade.suggestion}</p> : null}
-        <p><b>参考：</b>{grade.referenceAnswer}</p>
-        {!isPerfect ? <p><b>可改成：</b>{grade.improvedAnswer}</p> : null}
+        <AnswerLines label="参考" text={grade.referenceAnswer} />
+        {!isPerfect ? <AnswerLines label="可改成" text={grade.improvedAnswer} /> : null}
         {!hideNext ? (
           <button className="primary-button" onClick={onNext}>
             {nextLabel || (isLast ? "完成这一天" : "下一题")}

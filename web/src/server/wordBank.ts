@@ -67,6 +67,7 @@ export function toPublicWordDetails(word: WordEntry) {
     phonetics: [...new Set(word.definitions.map((definition) => definition.phonetic).filter(Boolean))],
     definitions: word.definitions,
     example,
+    examples: word.examples,
     tags: word.tags,
     hasAudio: Boolean(word.audioPath)
   };
