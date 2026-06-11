@@ -113,20 +113,12 @@ export async function testAiModelConnection(config: AiModelConfig): Promise<void
         model: config.model,
         messages: [
           {
-            role: "system",
-            content: "请严格输出 JSON，不要 Markdown。"
-          },
-          {
             role: "user",
-            content: JSON.stringify({
-              task: "连接测试",
-              outputSchema: { ok: "boolean" }
-            })
+            content: "Reply with the single word OK."
           }
         ],
         temperature: 0,
-        max_tokens: 32,
-        response_format: { type: "json_object" }
+        max_tokens: 256
       })
     });
 
@@ -135,19 +127,25 @@ export async function testAiModelConnection(config: AiModelConfig): Promise<void
       throw new Error(`HTTP ${response.status}: ${bodyText.slice(0, 240)}`);
     }
 
-    const body = JSON.parse(bodyText) as { choices?: Array<{ message?: { content?: string } }> };
-    const content = body.choices?.[0]?.message?.content;
-    if (!content) {
-      throw new Error("模型响应里没有 message content。");
+    // 连接测试只验证「能连通 + 鉴权通过 + 模型名有效」：HTTP 200 且返回里有 choices 即视为成功，
+    // 不强求 message content（部分模型/网关在被 max_tokens 截断或只返回 reasoning 时 content 为空，
+    // 但这并不代表连接不可用——真实批改时不设这种小 max_tokens 限制）。
+    let body: { choices?: unknown[]; error?: { message?: string } };
+    try {
+      body = JSON.parse(bodyText);
+    } catch {
+      throw new Error("模型返回的不是有效 JSON，请确认 Base URL 是否指向 OpenAI 兼容的接口。");
     }
-    JSON.parse(content);
+    if (body.error) {
+      throw new Error(`模型返回错误：${body.error.message || JSON.stringify(body.error).slice(0, 200)}`);
+    }
+    if (!Array.isArray(body.choices)) {
+      throw new Error("模型响应缺少 choices 字段，可能不是 OpenAI 兼容接口。");
+    }
   } catch (error) {
     if (error instanceof AiConfigError) throw error;
     if (error instanceof Error && error.name === "AbortError") {
       throw new Error("连接测试超时，请检查 Base URL、模型名称或网络状态。");
-    }
-    if (error instanceof SyntaxError) {
-      throw new Error("模型返回内容不是有效 JSON。");
     }
     throw error;
   } finally {
