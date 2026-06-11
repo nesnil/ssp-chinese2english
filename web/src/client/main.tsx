@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   ArrowRight,
+  BadgeCheck,
   BookOpen,
   Check,
   CheckCircle2,
@@ -9,6 +10,7 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Coins,
   Flag,
   History,
   Heart,
@@ -25,6 +27,7 @@ import {
   Trash2,
   Trophy,
   Volume2,
+  Wallet,
   X
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -201,6 +204,33 @@ type Grade = {
   needsReview: boolean;
 };
 
+type WalletChange = {
+  change: number;
+  balance: number;
+  reason: "perfect" | "fail" | null;
+};
+
+type WalletTx = {
+  id: number;
+  type: "reward" | "penalty" | "withdraw" | "adjust" | string;
+  amountCents: number;
+  source: string | null;
+  refId: string | null;
+  score: number | null;
+  status: string | null;
+  paidAt: string | null;
+  note: string | null;
+  createdAt: string;
+};
+
+type WalletSummary = {
+  balanceCents: number;
+  thresholdCents: number;
+  canWithdraw: boolean;
+  transactions: WalletTx[];
+  withdrawals: WalletTx[];
+};
+
 const DEFAULT_WORD_SCOPE_TAG = "shanghai-zhongkao";
 
 // Injected at build time from the latest git tag (see vite.config.ts).
@@ -213,6 +243,8 @@ function App() {
   const [wordProgress, setWordProgress] = useState<WordProgress | null>(null);
   const [activeDay, setActiveDay] = useState<{ season: number; day: number } | null>(null);
   const [reviewMode, setReviewMode] = useState<"center" | "practice" | null>(null);
+  const [walletOpen, setWalletOpen] = useState(false);
+  const [wallet, setWallet] = useState<WalletSummary | null>(null);
   const [homeMode, setHomeMode] = useState<"sentences" | "words">("sentences");
   const [role, setRole] = useState<"user" | "admin">("user");
   const [adminMode, setAdminMode] = useState(() => typeof location !== "undefined" && location.hash === "#admin");
@@ -223,15 +255,17 @@ function App() {
     setLoading(true);
     setError("");
     try {
-      const [catalogResponse, progressResponse, wordProgressResponse, meResponse] = await Promise.all([
+      const [catalogResponse, progressResponse, wordProgressResponse, meResponse, walletResponse] = await Promise.all([
         api("/api/catalog"),
         api("/api/progress"),
         api("/api/word/progress"),
-        api("/api/me")
+        api("/api/me"),
+        api("/api/wallet")
       ]);
       setCatalog(catalogResponse.seasons);
       setProgress(progressResponse);
       setWordProgress(wordProgressResponse);
+      setWallet(walletResponse);
       setRole(meResponse.role === "admin" ? "admin" : "user");
       setAuthenticated(true);
     } catch (err) {
@@ -291,6 +325,17 @@ function App() {
     return <LoadingScreen />;
   }
 
+  if (walletOpen) {
+    return (
+      <WalletScreen
+        onBack={() => {
+          setWalletOpen(false);
+          refresh();
+        }}
+      />
+    );
+  }
+
   if (activeDay) {
     return (
       <PracticeScreen
@@ -322,6 +367,8 @@ function App() {
   return (
     <Shell
       showAdmin={role === "admin"}
+      walletBalanceCents={wallet ? wallet.balanceCents : null}
+      onOpenWallet={() => setWalletOpen(true)}
       onOpenAdmin={() => {
         location.hash = "#admin";
         setAdminMode(true);
@@ -345,6 +392,9 @@ function App() {
           initialMode="new"
           embedded
           onBack={() => setHomeMode("sentences")}
+          onWalletBalance={(balanceCents) =>
+            setWallet((prev) => (prev ? { ...prev, balanceCents, canWithdraw: balanceCents >= prev.thresholdCents } : prev))
+          }
         />
       )}
     </Shell>
@@ -355,12 +405,16 @@ function Shell({
   children,
   onLogout,
   showAdmin,
-  onOpenAdmin
+  onOpenAdmin,
+  walletBalanceCents,
+  onOpenWallet
 }: {
   children: React.ReactNode;
   onLogout: () => void;
   showAdmin?: boolean;
   onOpenAdmin?: () => void;
+  walletBalanceCents?: number | null;
+  onOpenWallet?: () => void;
 }) {
   return (
     <main className="app-shell">
@@ -378,6 +432,16 @@ function Shell({
           </div>
         </div>
         <div className="topbar-actions">
+          {onOpenWallet ? (
+            <button
+              className={`wallet-chip ${(walletBalanceCents ?? 0) < 0 ? "negative" : ""}`}
+              onClick={onOpenWallet}
+              title="我的钱包"
+            >
+              <Wallet size={18} />
+              <strong>{formatYuan(walletBalanceCents ?? 0)}</strong>
+            </button>
+          ) : null}
           {showAdmin ? (
             <button className="icon-button" onClick={onOpenAdmin} title="后台管理">
               <Settings size={20} />
@@ -720,6 +784,7 @@ function PracticeScreen({ season, day, onBack }: { season: number; day: number; 
   const [current, setCurrent] = useState(0);
   const [answer, setAnswer] = useState("");
   const [grade, setGrade] = useState<Grade | null>(null);
+  const [walletChange, setWalletChange] = useState<WalletChange | null>(null);
   const [attemptId, setAttemptId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -766,6 +831,7 @@ function PracticeScreen({ season, day, onBack }: { season: number; day: number; 
         body: JSON.stringify({ questionId: question.id, answer, attemptId, mode: "day" })
       });
       setGrade(response.grade);
+      setWalletChange(response.wallet || null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "提交失败");
     } finally {
@@ -776,6 +842,7 @@ function PracticeScreen({ season, day, onBack }: { season: number; day: number; 
   function next() {
     setAnswer("");
     setGrade(null);
+    setWalletChange(null);
     setCurrent((value) => value + 1);
   }
 
@@ -823,10 +890,184 @@ function PracticeScreen({ season, day, onBack }: { season: number; day: number; 
               提交批改
             </button>
           ) : (
-            <Feedback grade={grade} onNext={next} isLast={current === questions.length - 1} />
+            <Feedback grade={grade} wallet={walletChange} onNext={next} isLast={current === questions.length - 1} />
           )}
           {submitting ? <GradingOverlay /> : null}
         </section>
+      ) : null}
+    </main>
+  );
+}
+
+const WALLET_TX_LABELS: Record<string, string> = {
+  reward: "满分奖励",
+  penalty: "答题扣除",
+  withdraw: "提现",
+  adjust: "家长调整"
+};
+
+function walletTxLabel(type: string): string {
+  return WALLET_TX_LABELS[type] || type;
+}
+
+function walletTxIcon(type: string): React.ReactNode {
+  if (type === "reward") return <Coins size={18} />;
+  if (type === "penalty") return <X size={18} />;
+  if (type === "withdraw") return <Wallet size={18} />;
+  return <Settings size={18} />;
+}
+
+// 流水的小字说明:句子 ref 解析成"第几季第几天第几题",单词 ref 标出阶段,调整显示备注。
+function walletTxCaption(tx: WalletTx): string {
+  if (tx.type === "adjust") return tx.note || "";
+  if (tx.type === "withdraw") return tx.status === "paid" ? "已发放" : "待发放";
+  if (!tx.refId) return "";
+  const match = tx.refId.match(/^S(\d+)-D(\d+)-Q(\d+)$/);
+  if (match) return `S${match[1]} Day ${match[2]} 第 ${match[3]} 题`;
+  if (tx.source === "word") return tx.refId.endsWith(":example") ? "单词练习 · 例句" : "单词练习 · 默写";
+  return "";
+}
+
+function WalletScreen({ onBack }: { onBack: () => void }) {
+  const [data, setData] = useState<WalletSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  async function load() {
+    setError("");
+    try {
+      setData(await api("/api/wallet"));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "钱包加载失败");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function withdraw() {
+    if (!data?.canWithdraw || withdrawing) return;
+    setWithdrawing(true);
+    setError("");
+    setNotice("");
+    try {
+      await api("/api/wallet/withdraw", { method: "POST" });
+      setNotice("提现申请已提交，等爸爸妈妈发放～");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "提现失败");
+    } finally {
+      setWithdrawing(false);
+    }
+  }
+
+  const balance = data?.balanceCents ?? 0;
+  const threshold = data?.thresholdCents || 1000;
+  const percent = Math.max(0, Math.min(100, (balance / threshold) * 100));
+
+  return (
+    <main className="practice-shell">
+      <header className="practice-header">
+        <button className="soft-button" onClick={onBack}>
+          返回地图
+        </button>
+        <div>
+          <strong>我的钱包</strong>
+          <span>攒够 {formatYuan(threshold)} 可以提现</span>
+        </div>
+      </header>
+
+      {loading ? <LoadingScreen compact /> : null}
+      {error ? <div className="notice danger">{error}</div> : null}
+      {notice ? <div className="notice">{notice}</div> : null}
+
+      {!loading && data ? (
+        <>
+          <section className={`wallet-hero ${balance < 0 ? "negative" : ""}`}>
+            <div className="wallet-hero-balance">
+              <span>
+                <Wallet size={18} />
+                当前余额
+              </span>
+              <strong>{formatYuan(balance)}</strong>
+              <p>{balance < 0 ? "先把欠的赚回来，加油！" : "考满分有奖励，攒够就能找爸爸妈妈提现。"}</p>
+            </div>
+            <div className="wallet-progress">
+              <div className="wallet-progress-track">
+                <div className="wallet-progress-fill" style={{ width: `${percent}%` }} />
+              </div>
+              <small>
+                已攒 {formatYuan(Math.max(0, balance))} / 提现门槛 {formatYuan(threshold)}
+              </small>
+              <button className="primary-button wide" onClick={withdraw} disabled={!data.canWithdraw || withdrawing}>
+                {withdrawing ? <Loader2 className="spin" size={20} /> : <Coins size={20} />}
+                {data.canWithdraw ? `提现 ${formatYuan(balance)}` : `还差 ${formatYuan(Math.max(0, threshold - balance))} 可提现`}
+              </button>
+            </div>
+          </section>
+
+          {data.withdrawals.length ? (
+            <section className="wallet-panel">
+              <div className="section-title">
+                <h2>提现记录</h2>
+                <span>给爸爸妈妈看,发完钱打勾</span>
+              </div>
+              <div className="wallet-tx-list">
+                {data.withdrawals.map((tx) => (
+                  <article key={tx.id} className="wallet-tx">
+                    <span className="wallet-tx-icon withdraw">{walletTxIcon("withdraw")}</span>
+                    <div className="wallet-tx-main">
+                      <strong>提现 {formatYuan(-tx.amountCents)}</strong>
+                      <small>{formatDate(tx.createdAt)}</small>
+                    </div>
+                    <span className={`wallet-status ${tx.status === "paid" ? "paid" : "pending"}`}>
+                      {tx.status === "paid" ? (
+                        <>
+                          <BadgeCheck size={14} />
+                          已发放
+                        </>
+                      ) : (
+                        "待发放"
+                      )}
+                    </span>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          <section className="wallet-panel">
+            <div className="section-title">
+              <h2>钱包流水</h2>
+              <span>最近 {data.transactions.length} 笔</span>
+            </div>
+            <div className="wallet-tx-list">
+              {data.transactions.length ? (
+                data.transactions.map((tx) => (
+                  <article key={tx.id} className="wallet-tx">
+                    <span className={`wallet-tx-icon ${tx.type}`}>{walletTxIcon(tx.type)}</span>
+                    <div className="wallet-tx-main">
+                      <strong>{walletTxLabel(tx.type)}</strong>
+                      <small>
+                        {walletTxCaption(tx)}
+                        {walletTxCaption(tx) ? " · " : ""}
+                        {formatDate(tx.createdAt)}
+                      </small>
+                    </div>
+                    <b className={`wallet-amount ${tx.amountCents >= 0 ? "gain" : "loss"}`}>{signedYuan(tx.amountCents)}</b>
+                  </article>
+                ))
+              ) : (
+                <p className="wallet-empty">还没有流水，考个满分赚第一笔吧！</p>
+              )}
+            </div>
+          </section>
+        </>
       ) : null}
     </main>
   );
@@ -1027,6 +1268,7 @@ function ReviewScreen({ onBack }: { onBack: () => void }) {
   const [current, setCurrent] = useState(0);
   const [answer, setAnswer] = useState("");
   const [grade, setGrade] = useState<Grade | null>(null);
+  const [walletChange, setWalletChange] = useState<WalletChange | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -1059,6 +1301,7 @@ function ReviewScreen({ onBack }: { onBack: () => void }) {
         body: JSON.stringify({ questionId: question.id, answer, mode: "review" })
       });
       setGrade(response.grade);
+      setWalletChange(response.wallet || null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "提交失败");
     } finally {
@@ -1074,6 +1317,7 @@ function ReviewScreen({ onBack }: { onBack: () => void }) {
     }
     setAnswer("");
     setGrade(null);
+    setWalletChange(null);
     setCurrent((value) => value + 1);
   }
 
@@ -1149,6 +1393,7 @@ function ReviewScreen({ onBack }: { onBack: () => void }) {
           ) : (
             <Feedback
               grade={grade}
+              wallet={walletChange}
               onNext={next}
               isLast={current === questions.length - 1}
               nextLabel={
@@ -1170,11 +1415,14 @@ function ReviewScreen({ onBack }: { onBack: () => void }) {
 function WordPracticeScreen({
   initialMode,
   onBack,
-  embedded = false
+  embedded = false,
+  onWalletBalance
 }: {
   initialMode: "new" | "review";
   onBack: () => void;
   embedded?: boolean;
+  // 嵌入首页时顶栏钱包 chip 可见,提交后把最新余额回传给 App 实时刷新。
+  onWalletBalance?: (balanceCents: number) => void;
 }) {
   const [catalog, setCatalog] = useState<WordCatalog | null>(null);
   const [progress, setProgress] = useState<WordProgress | null>(null);
@@ -1189,8 +1437,10 @@ function WordPracticeScreen({
   const [wordAnswer, setWordAnswer] = useState("");
   const [meaningAnswers, setMeaningAnswers] = useState<Record<string, string>>({});
   const [wordGrade, setWordGrade] = useState<Grade | null>(null);
+  const [wordWallet, setWordWallet] = useState<WalletChange | null>(null);
   const [exampleAnswers, setExampleAnswers] = useState<string[]>([]);
   const [exampleGrade, setExampleGrade] = useState<Grade | null>(null);
+  const [exampleWallet, setExampleWallet] = useState<WalletChange | null>(null);
   const [details, setDetails] = useState<WordDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -1274,8 +1524,10 @@ function WordPracticeScreen({
     setWordAnswer("");
     setMeaningAnswers({});
     setWordGrade(null);
+    setWordWallet(null);
     setExampleAnswers([]);
     setExampleGrade(null);
+    setExampleWallet(null);
     setDetails(null);
   }
 
@@ -1306,6 +1558,8 @@ function WordPracticeScreen({
         })
       });
       setWordGrade(response.grade);
+      setWordWallet(response.wallet || null);
+      if (response.wallet && onWalletBalance) onWalletBalance(response.wallet.balance);
       setDetails(response.details);
       await refreshWordProgress();
     } catch (err) {
@@ -1332,6 +1586,8 @@ function WordPracticeScreen({
         })
       });
       setExampleGrade(response.grade);
+      setExampleWallet(response.wallet || null);
+      if (response.wallet && onWalletBalance) onWalletBalance(response.wallet.balance);
       setDetails(response.details);
       await refreshWordProgress();
     } catch (err) {
@@ -1494,6 +1750,7 @@ function WordPracticeScreen({
           ) : (
             <Feedback
               grade={wordGrade}
+              wallet={wordWallet}
               onNext={nextWord}
               isLast={current === words.length - 1}
               nextLabel={wordPassed ? "继续例句" : current === words.length - 1 ? "完成这一组" : "下一词"}
@@ -1539,6 +1796,7 @@ function WordPracticeScreen({
               ) : (
                 <Feedback
                   grade={exampleGrade}
+                  wallet={exampleWallet}
                   onNext={nextWord}
                   isLast={current === words.length - 1}
                   nextLabel={current === words.length - 1 ? "完成这一组" : "下一词"}
@@ -1669,13 +1927,15 @@ function Feedback({
   onNext,
   isLast,
   nextLabel,
-  hideNext = false
+  hideNext = false,
+  wallet = null
 }: {
   grade: Grade;
   onNext: () => void;
   isLast: boolean;
   nextLabel?: string;
   hideNext?: boolean;
+  wallet?: WalletChange | null;
 }) {
   const isPerfect = grade.score === 100;
 
@@ -1687,6 +1947,15 @@ function Feedback({
       </div>
       <div className="feedback-body">
         <h2>{grade.encouragement}</h2>
+        {wallet && wallet.reason === "perfect" && wallet.change > 0 ? (
+          <p className="money-note gain coin-pop">
+            <Coins size={18} />
+            满分奖励 +{formatYuan(wallet.change)}，钱包共 {formatYuan(wallet.balance)}
+          </p>
+        ) : null}
+        {wallet && wallet.reason === "fail" && wallet.change < 0 ? (
+          <p className="money-note loss">小钱包 -{formatYuan(-wallet.change)}，下次赚回来！</p>
+        ) : null}
         {isPerfect ? (
           <p className="perfect-note"><b>太棒了：</b>{grade.suggestion}</p>
         ) : grade.issues.length ? (
@@ -1864,7 +2133,7 @@ function AdminLoginScreen({ onLogin, onCancel }: { onLogin: () => void; onCancel
 }
 
 function AdminApp({ onExit }: { onExit: () => void }) {
-  const [section, setSection] = useState<"questions" | "words" | "model">("questions");
+  const [section, setSection] = useState<"questions" | "words" | "model" | "wallet">("questions");
 
   return (
     <main className="app-shell admin-shell">
@@ -1898,8 +2167,20 @@ function AdminApp({ onExit }: { onExit: () => void }) {
           <Settings size={19} />
           模型
         </button>
+        <button className={section === "wallet" ? "active" : ""} onClick={() => setSection("wallet")}>
+          <Wallet size={19} />
+          钱包
+        </button>
       </nav>
-      {section === "questions" ? <AdminQuestions /> : section === "words" ? <AdminWords /> : <AdminModelSettings />}
+      {section === "questions" ? (
+        <AdminQuestions />
+      ) : section === "words" ? (
+        <AdminWords />
+      ) : section === "model" ? (
+        <AdminModelSettings />
+      ) : (
+        <AdminWallet />
+      )}
     </main>
   );
 }
@@ -2513,6 +2794,263 @@ function AdminModelSettings() {
   );
 }
 
+type AdminWalletSettingsData = {
+  rewardMinCents: number;
+  rewardMaxCents: number;
+  penaltyMinCents: number;
+  penaltyMaxCents: number;
+  withdrawThresholdCents: number;
+  updatedAt: string | null;
+};
+
+// 表单内金额一律以"元"为单位展示和输入,提交时 ×100 转成分。
+function yuanInputValue(cents: number): string {
+  return String(cents / 100);
+}
+
+function AdminWallet() {
+  const [rewardMin, setRewardMin] = useState("1");
+  const [rewardMax, setRewardMax] = useState("3");
+  const [penaltyMin, setPenaltyMin] = useState("1");
+  const [penaltyMax, setPenaltyMax] = useState("2");
+  const [threshold, setThreshold] = useState("10");
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [balanceCents, setBalanceCents] = useState(0);
+  const [items, setItems] = useState<WalletTx[]>([]);
+  const [total, setTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const [pendingWithdrawals, setPendingWithdrawals] = useState<WalletTx[]>([]);
+  const [adjustAmount, setAdjustAmount] = useState("");
+  const [adjustNote, setAdjustNote] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [adjusting, setAdjusting] = useState(false);
+  const [error, setError] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  async function loadSettings() {
+    const data = (await api("/api/admin/wallet-settings")) as AdminWalletSettingsData;
+    setRewardMin(yuanInputValue(data.rewardMinCents));
+    setRewardMax(yuanInputValue(data.rewardMaxCents));
+    setPenaltyMin(yuanInputValue(data.penaltyMinCents));
+    setPenaltyMax(yuanInputValue(data.penaltyMaxCents));
+    setThreshold(yuanInputValue(data.withdrawThresholdCents));
+    setUpdatedAt(data.updatedAt);
+  }
+
+  async function loadTransactions(nextOffset = offset) {
+    const [pageData, withdrawData] = await Promise.all([
+      api(`/api/admin/wallet/transactions?limit=${ADMIN_PAGE_SIZE}&offset=${nextOffset}`),
+      api("/api/admin/wallet/transactions?type=withdraw&limit=100")
+    ]);
+    setItems(pageData.items);
+    setTotal(pageData.total);
+    setBalanceCents(pageData.balanceCents);
+    setPendingWithdrawals((withdrawData.items as WalletTx[]).filter((tx) => tx.status === "pending"));
+  }
+
+  useEffect(() => {
+    setLoading(true);
+    setError("");
+    Promise.all([loadSettings(), loadTransactions(0)])
+      .catch((err) => setError(err instanceof Error ? err.message : "钱包数据加载失败"))
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    loadTransactions(offset).catch((err) => setError(err instanceof Error ? err.message : "钱包流水加载失败"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offset]);
+
+  async function saveSettings(event: React.FormEvent) {
+    event.preventDefault();
+    setSubmitting(true);
+    setError("");
+    setSaved(false);
+    try {
+      const data = (await api("/api/admin/wallet-settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rewardMinCents: Math.round(Number(rewardMin) * 100),
+          rewardMaxCents: Math.round(Number(rewardMax) * 100),
+          penaltyMinCents: Math.round(Number(penaltyMin) * 100),
+          penaltyMaxCents: Math.round(Number(penaltyMax) * 100),
+          withdrawThresholdCents: Math.round(Number(threshold) * 100)
+        })
+      })) as AdminWalletSettingsData;
+      setRewardMin(yuanInputValue(data.rewardMinCents));
+      setRewardMax(yuanInputValue(data.rewardMaxCents));
+      setPenaltyMin(yuanInputValue(data.penaltyMinCents));
+      setPenaltyMax(yuanInputValue(data.penaltyMaxCents));
+      setThreshold(yuanInputValue(data.withdrawThresholdCents));
+      setUpdatedAt(data.updatedAt);
+      setSaved(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "保存失败");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function markPaid(id: number) {
+    setError("");
+    try {
+      await api(`/api/admin/wallet/withdrawals/${id}/paid`, { method: "POST" });
+      await loadTransactions();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "标记失败");
+    }
+  }
+
+  async function adjust(event: React.FormEvent) {
+    event.preventDefault();
+    setAdjusting(true);
+    setError("");
+    try {
+      await api("/api/admin/wallet/adjust", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amountCents: Math.round(Number(adjustAmount) * 100), note: adjustNote })
+      });
+      setAdjustAmount("");
+      setAdjustNote("");
+      setOffset(0);
+      await loadTransactions(0);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "调整失败");
+    } finally {
+      setAdjusting(false);
+    }
+  }
+
+  return (
+    <section className="admin-panel">
+      <div className="admin-settings-head">
+        <div>
+          <span className={`admin-status ${balanceCents >= 0 ? "ready" : "missing"}`}>余额 {formatYuan(balanceCents)}</span>
+          <h2>钱包奖励</h2>
+        </div>
+        {updatedAt ? <small>更新于 {formatDate(updatedAt)}</small> : null}
+      </div>
+
+      {loading ? <LoadingScreen compact /> : null}
+      {error ? <div className="notice danger">{error}</div> : null}
+      {saved ? <div className="notice">钱包配置已保存。</div> : null}
+
+      {!loading ? (
+        <>
+          <form className="admin-form admin-settings-form" onSubmit={saveSettings}>
+            <div className="admin-form-row">
+              <label>
+                满分奖励下限（元）
+                <input type="number" min={1} step={1} value={rewardMin} onChange={(event) => setRewardMin(event.target.value)} required />
+              </label>
+              <label>
+                满分奖励上限（元）
+                <input type="number" min={1} step={1} value={rewardMax} onChange={(event) => setRewardMax(event.target.value)} required />
+              </label>
+            </div>
+            <div className="admin-form-row">
+              <label>
+                低分扣除下限（元）
+                <input type="number" min={1} step={1} value={penaltyMin} onChange={(event) => setPenaltyMin(event.target.value)} required />
+              </label>
+              <label>
+                低分扣除上限（元）
+                <input type="number" min={1} step={1} value={penaltyMax} onChange={(event) => setPenaltyMax(event.target.value)} required />
+              </label>
+            </div>
+            <label>
+              提现门槛（元）
+              <input type="number" min={1} step={1} value={threshold} onChange={(event) => setThreshold(event.target.value)} required />
+            </label>
+            <div className="admin-form-actions">
+              <button className="primary-button small" disabled={submitting}>
+                {submitting ? <Loader2 className="spin" size={18} /> : <Check size={18} />}
+                保存配置
+              </button>
+            </div>
+          </form>
+
+          {pendingWithdrawals.length ? (
+            <div className="admin-wallet-block">
+              <h3>待发放提现</h3>
+              <div className="wallet-tx-list">
+                {pendingWithdrawals.map((tx) => (
+                  <article key={tx.id} className="wallet-tx">
+                    <span className="wallet-tx-icon withdraw">
+                      <Wallet size={18} />
+                    </span>
+                    <div className="wallet-tx-main">
+                      <strong>提现 {formatYuan(-tx.amountCents)}</strong>
+                      <small>{formatDate(tx.createdAt)}</small>
+                    </div>
+                    <button className="soft-button small" onClick={() => markPaid(tx.id)}>
+                      <BadgeCheck size={16} />
+                      标记已发放
+                    </button>
+                  </article>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          <div className="admin-wallet-block">
+            <h3>手动调整</h3>
+            <form className="admin-wallet-adjust" onSubmit={adjust}>
+              <input
+                type="number"
+                step={0.1}
+                value={adjustAmount}
+                onChange={(event) => setAdjustAmount(event.target.value)}
+                placeholder="金额（元，可为负）"
+                required
+              />
+              <input
+                value={adjustNote}
+                onChange={(event) => setAdjustNote(event.target.value)}
+                placeholder="原因，如：周末奖励"
+                required
+              />
+              <button className="primary-button small" disabled={adjusting}>
+                {adjusting ? <Loader2 className="spin" size={18} /> : <Plus size={18} />}
+                调整
+              </button>
+            </form>
+          </div>
+
+          <div className="admin-wallet-block">
+            <h3>钱包流水</h3>
+            <div className="wallet-tx-list">
+              {items.length ? (
+                items.map((tx) => (
+                  <article key={tx.id} className="wallet-tx">
+                    <span className={`wallet-tx-icon ${tx.type}`}>{walletTxIcon(tx.type)}</span>
+                    <div className="wallet-tx-main">
+                      <strong>{walletTxLabel(tx.type)}</strong>
+                      <small>
+                        {walletTxCaption(tx)}
+                        {walletTxCaption(tx) ? " · " : ""}
+                        {formatDate(tx.createdAt)}
+                      </small>
+                    </div>
+                    <b className={`wallet-amount ${tx.amountCents >= 0 ? "gain" : "loss"}`}>{signedYuan(tx.amountCents)}</b>
+                  </article>
+                ))
+              ) : (
+                <p className="admin-empty">还没有钱包流水。</p>
+              )}
+            </div>
+            <AdminPager total={total} offset={offset} onOffset={setOffset} />
+          </div>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
 function AdminWordForm({ word, onClose, onSaved }: { word: AdminWord | null; onClose: () => void; onSaved: () => void }) {
   const isNew = !word;
   const [name, setName] = useState(word?.name || "");
@@ -2826,6 +3364,17 @@ function formatPhonetics(phonetics: string[]): string {
     .filter(Boolean)
     .map((p) => (/^\/.*\/$/.test(p) ? p : `/${p.replace(/^\/|\/$/g, "")}/`))
     .join("  ");
+}
+
+// 金额以分存储,整元显示 ¥3,非整元显示 ¥3.50。
+function formatYuan(cents: number): string {
+  const abs = Math.abs(cents);
+  const text = abs % 100 === 0 ? String(abs / 100) : (abs / 100).toFixed(2);
+  return `${cents < 0 ? "-" : ""}¥${text}`;
+}
+
+function signedYuan(cents: number): string {
+  return cents >= 0 ? `+${formatYuan(cents)}` : formatYuan(cents);
 }
 
 function formatDate(value: string): string {

@@ -52,6 +52,21 @@ export type AiModelSettings = AiModelConfig & {
   updatedAt: string | null;
 };
 
+export type WalletSettings = {
+  rewardMinCents: number;
+  rewardMaxCents: number;
+  penaltyMinCents: number;
+  penaltyMaxCents: number;
+  withdrawThresholdCents: number;
+  updatedAt: string | null;
+};
+
+export type WalletChange = {
+  change: number;
+  balance: number;
+  reason: "perfect" | "fail" | null;
+};
+
 export type WordDefinition = {
   phonetic: string;
   partOfSpeech: string;

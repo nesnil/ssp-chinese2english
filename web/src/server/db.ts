@@ -2,7 +2,7 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { createHash, randomBytes } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
-import type { AiModelConfig, AiModelSettings, AppConfig, GradeResult, WordEntry } from "./types.js";
+import type { AiModelConfig, AiModelSettings, AppConfig, GradeResult, WalletChange, WalletSettings, WordEntry } from "./types.js";
 
 type SubmissionRow = {
   question_id: string;
@@ -150,6 +150,24 @@ export type WordRow = {
   tags_json: string;
   audio_path: string | null;
 };
+
+export type WalletTransactionRow = {
+  id: number;
+  type: string;
+  amount_cents: number;
+  source: string | null;
+  ref_id: string | null;
+  submission_id: number | null;
+  score: number | null;
+  status: string | null;
+  paid_at: string | null;
+  note: string | null;
+  created_at: string;
+};
+
+type WalletSettleInput =
+  | { source: "sentence"; questionId: string; submissionId: number; score: number; errorSummary?: string | null }
+  | { source: "word"; wordId: string; phase: WordSubmissionPhase; submissionId: number; score: number; errorSummary?: string | null };
 
 type SeedQuestion = {
   id: string;
@@ -322,6 +340,29 @@ export class AppDatabase {
       CREATE INDEX IF NOT EXISTS idx_words_sort ON words(sort_index);
 
       CREATE TABLE IF NOT EXISTS reference_meta (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS wallet_transactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        type TEXT NOT NULL,
+        amount_cents INTEGER NOT NULL,
+        source TEXT,
+        ref_id TEXT,
+        submission_id INTEGER,
+        score INTEGER,
+        status TEXT,
+        paid_at TEXT,
+        note TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_wallet_tx_ref ON wallet_transactions(type, source, ref_id);
+      CREATE INDEX IF NOT EXISTS idx_wallet_tx_status ON wallet_transactions(type, status);
+
+      CREATE TABLE IF NOT EXISTS wallet_settings (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -666,8 +707,8 @@ export class AppDatabase {
     grade: GradeResult;
     attemptId?: number | null;
     mode?: "day" | "review";
-  }): void {
-    this.db
+  }): number {
+    const result = this.db
       .prepare(`
         INSERT INTO submissions (
           question_id, season, day, question_no, answer, score, level, encouragement,
@@ -695,6 +736,7 @@ export class AppDatabase {
         input.attemptId || null,
         input.mode || "day"
       );
+    return Number(result.lastInsertRowid);
   }
 
   startDayAttempt(season: number, day: number, questionCount: number): number {
@@ -1233,8 +1275,8 @@ export class AppDatabase {
     meaningAnswers?: Record<string, string>;
     answer: string;
     grade: GradeResult;
-  }): void {
-    this.db
+  }): number {
+    const result = this.db
       .prepare(`
         INSERT INTO word_submissions (
           session_id, word_id, phase, word_answer, meaning_answer_json, answer, score, level,
@@ -1261,6 +1303,7 @@ export class AppDatabase {
         input.grade.rawAi || null,
         input.grade.errorSummary || null
       );
+    return Number(result.lastInsertRowid);
   }
 
   latestWordPhaseScore(wordId: string, phase: WordSubmissionPhase): number | null {
@@ -1410,6 +1453,193 @@ export class AppDatabase {
       submissionCount: submissionRow.count
     };
   }
+
+  // --- 钱包(Wallet):满分奖励 / 低分惩罚流水、提现、家长配置 ---
+
+  getWalletSettings(): WalletSettings {
+    const rows = this.db.prepare("SELECT key, value, updated_at FROM wallet_settings").all() as Array<{
+      key: string;
+      value: string;
+      updated_at: string;
+    }>;
+    const values = new Map(rows.map((row) => [row.key, row.value]));
+    const updatedAt =
+      rows.reduce<string | null>((latest, row) => {
+        if (!latest || row.updated_at > latest) return row.updated_at;
+        return latest;
+      }, null) || null;
+    return {
+      rewardMinCents: centsSetting(values.get("reward_min_cents"), WALLET_DEFAULTS.rewardMinCents),
+      rewardMaxCents: centsSetting(values.get("reward_max_cents"), WALLET_DEFAULTS.rewardMaxCents),
+      penaltyMinCents: centsSetting(values.get("penalty_min_cents"), WALLET_DEFAULTS.penaltyMinCents),
+      penaltyMaxCents: centsSetting(values.get("penalty_max_cents"), WALLET_DEFAULTS.penaltyMaxCents),
+      withdrawThresholdCents: centsSetting(values.get("withdraw_threshold_cents"), WALLET_DEFAULTS.withdrawThresholdCents),
+      updatedAt
+    };
+  }
+
+  updateWalletSettings(input: Partial<Omit<WalletSettings, "updatedAt">>): WalletSettings {
+    const current = this.getWalletSettings();
+    const next = {
+      rewardMinCents: input.rewardMinCents ?? current.rewardMinCents,
+      rewardMaxCents: input.rewardMaxCents ?? current.rewardMaxCents,
+      penaltyMinCents: input.penaltyMinCents ?? current.penaltyMinCents,
+      penaltyMaxCents: input.penaltyMaxCents ?? current.penaltyMaxCents,
+      withdrawThresholdCents: input.withdrawThresholdCents ?? current.withdrawThresholdCents
+    };
+    const fields: Array<[string, number, number]> = [
+      ["奖励金额", next.rewardMinCents, 10000],
+      ["奖励金额", next.rewardMaxCents, 10000],
+      ["扣除金额", next.penaltyMinCents, 10000],
+      ["扣除金额", next.penaltyMaxCents, 10000],
+      ["提现门槛", next.withdrawThresholdCents, 1000000]
+    ];
+    for (const [label, value, maxCents] of fields) {
+      if (!Number.isInteger(value) || value % 100 !== 0 || value < 100 || value > maxCents) {
+        throw new Error(`${label}需为 1~${maxCents / 100} 之间的整数元。`);
+      }
+    }
+    if (next.rewardMinCents > next.rewardMaxCents) throw new Error("奖励金额下限不能大于上限。");
+    if (next.penaltyMinCents > next.penaltyMaxCents) throw new Error("扣除金额下限不能大于上限。");
+    this.db.exec("BEGIN");
+    try {
+      const upsert = this.db.prepare(`
+        INSERT INTO wallet_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+      `);
+      upsert.run("reward_min_cents", String(next.rewardMinCents));
+      upsert.run("reward_max_cents", String(next.rewardMaxCents));
+      upsert.run("penalty_min_cents", String(next.penaltyMinCents));
+      upsert.run("penalty_max_cents", String(next.penaltyMaxCents));
+      upsert.run("withdraw_threshold_cents", String(next.withdrawThresholdCents));
+      this.db.exec("COMMIT");
+      return this.getWalletSettings();
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
+  getWalletBalance(): number {
+    const row = this.db.prepare("SELECT COALESCE(SUM(amount_cents), 0) AS balance FROM wallet_transactions").get() as {
+      balance: number;
+    };
+    return Number(row.balance);
+  }
+
+  // 结算一次提交的奖惩。自己开事务,严禁在其他事务内调用(目前两个提交路由都在事务外调)。
+  settleSubmissionWallet(input: WalletSettleInput): WalletChange {
+    // AI 评分失败(errorSummary 非空)不奖不罚——失败的是评分,不是孩子。
+    if (input.errorSummary) {
+      return { change: 0, balance: this.getWalletBalance(), reason: null };
+    }
+    const refId = input.source === "sentence" ? input.questionId : `${input.wordId}:${input.phase}`;
+    const settings = this.getWalletSettings();
+    this.db.exec("BEGIN");
+    try {
+      let change = 0;
+      let reason: WalletChange["reason"] = null;
+      if (input.score === 100) {
+        // 每个 ref(题目 / 单词+阶段)历史上只奖一次,复习时首次拿到满分同样算。
+        const rewarded = this.db
+          .prepare("SELECT 1 FROM wallet_transactions WHERE type = 'reward' AND source = ? AND ref_id = ? LIMIT 1")
+          .get(input.source, refId);
+        if (!rewarded) {
+          change = randomWholeYuanCents(settings.rewardMinCents, settings.rewardMaxCents);
+          reason = "perfect";
+        }
+      } else if (input.score < 60) {
+        // 仅该 ref 的首次有效提交才扣钱(本行已入库,所以"首次"即 COUNT = 1)。
+        // error_summary IS NULL 是故意的:首次提交若是 AI 失败,不消耗惩罚判定名额。
+        // 复习模式天然不会触发惩罚——复习提交必然不是首次。
+        const row = (input.source === "sentence"
+          ? this.db
+              .prepare("SELECT COUNT(*) AS n FROM submissions WHERE question_id = ? AND error_summary IS NULL")
+              .get(input.questionId)
+          : this.db
+              .prepare("SELECT COUNT(*) AS n FROM word_submissions WHERE word_id = ? AND phase = ? AND error_summary IS NULL")
+              .get(input.wordId, input.phase)) as { n: number };
+        if (row.n === 1) {
+          change = -randomWholeYuanCents(settings.penaltyMinCents, settings.penaltyMaxCents);
+          reason = "fail";
+        }
+      }
+      if (change !== 0) {
+        this.db
+          .prepare(`
+            INSERT INTO wallet_transactions (type, amount_cents, source, ref_id, submission_id, score)
+            VALUES (?, ?, ?, ?, ?, ?)
+          `)
+          .run(change > 0 ? "reward" : "penalty", change, input.source, refId, input.submissionId, input.score);
+      }
+      this.db.exec("COMMIT");
+      return { change, balance: this.getWalletBalance(), reason };
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
+  createWithdrawal(): { id: number; amountCents: number; balance: number } {
+    const threshold = this.getWalletSettings().withdrawThresholdCents;
+    this.db.exec("BEGIN");
+    try {
+      const balance = this.getWalletBalance();
+      if (balance < threshold) {
+        throw new Error(`余额还差 ${yuanText(threshold - balance)} 才能提现。`);
+      }
+      const result = this.db
+        .prepare("INSERT INTO wallet_transactions (type, amount_cents, status) VALUES ('withdraw', ?, 'pending')")
+        .run(-balance);
+      this.db.exec("COMMIT");
+      return { id: Number(result.lastInsertRowid), amountCents: balance, balance: 0 };
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
+  markWithdrawalPaid(id: number): boolean {
+    const result = this.db
+      .prepare(
+        "UPDATE wallet_transactions SET status = 'paid', paid_at = CURRENT_TIMESTAMP WHERE id = ? AND type = 'withdraw' AND status = 'pending'"
+      )
+      .run(id);
+    return Number(result.changes) > 0;
+  }
+
+  adjustWallet(amountCents: number, note: string): { id: number; balance: number } {
+    const trimmed = (note || "").trim();
+    if (!Number.isInteger(amountCents) || amountCents === 0) throw new Error("调整金额需为非零整数。");
+    if (Math.abs(amountCents) > 100000) throw new Error("单次调整金额不能超过 ¥1000。");
+    if (!trimmed) throw new Error("请填写调整原因。");
+    const result = this.db
+      .prepare("INSERT INTO wallet_transactions (type, amount_cents, note) VALUES ('adjust', ?, ?)")
+      .run(amountCents, trimmed);
+    return { id: Number(result.lastInsertRowid), balance: this.getWalletBalance() };
+  }
+
+  walletTransactions(limit: number, offset: number, type?: string): { total: number; items: WalletTransactionRow[] } {
+    const where = type ? " WHERE type = ?" : "";
+    const params: Array<string | number> = type ? [type] : [];
+    const totalRow = this.db.prepare(`SELECT COUNT(*) AS n FROM wallet_transactions${where}`).get(...params) as { n: number };
+    const items = this.db
+      .prepare(
+        `SELECT id, type, amount_cents, source, ref_id, submission_id, score, status, paid_at, note, created_at
+         FROM wallet_transactions${where} ORDER BY id DESC LIMIT ? OFFSET ?`
+      )
+      .all(...params, limit, offset) as WalletTransactionRow[];
+    return { total: totalRow.n, items };
+  }
+
+  listWithdrawals(): WalletTransactionRow[] {
+    return this.db
+      .prepare(
+        `SELECT id, type, amount_cents, source, ref_id, submission_id, score, status, paid_at, note, created_at
+         FROM wallet_transactions WHERE type = 'withdraw' ORDER BY id DESC`
+      )
+      .all() as WalletTransactionRow[];
+  }
 }
 
 function scopedWordClause(wordIds?: string[]): { where: string; params: string[] } {
@@ -1492,6 +1722,32 @@ function numberSetting(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return Math.min(Math.max(Math.round(parsed), 1000), 120000);
+}
+
+const WALLET_DEFAULTS = {
+  rewardMinCents: 100,
+  rewardMaxCents: 300,
+  penaltyMinCents: 100,
+  penaltyMaxCents: 200,
+  withdrawThresholdCents: 1000
+};
+
+// 钱包金额配置:整数分、整元(100 的倍数)、至少 1 元,否则回退默认值。
+function centsSetting(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 100 || parsed % 100 !== 0) return fallback;
+  return parsed;
+}
+
+// 在 [min, max] 分之间按整元随机(min == max 时退化为定值,测试用)。
+function randomWholeYuanCents(minCents: number, maxCents: number): number {
+  const minYuan = Math.round(minCents / 100);
+  const maxYuan = Math.max(minYuan, Math.round(maxCents / 100));
+  return (minYuan + Math.floor(Math.random() * (maxYuan - minYuan + 1))) * 100;
+}
+
+function yuanText(cents: number): string {
+  return cents % 100 === 0 ? `¥${cents / 100}` : `¥${(cents / 100).toFixed(2)}`;
 }
 
 function hashToken(token: string): string {

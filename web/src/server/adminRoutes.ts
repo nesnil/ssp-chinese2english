@@ -1,12 +1,13 @@
 import type { Express, Request, RequestHandler } from "express";
 import type { AiModelConfig, AppConfig, WordDefinition, WordExample } from "./types.js";
-import { AppDatabase } from "./db.js";
+import { AppDatabase, type WalletTransactionRow } from "./db.js";
 import { AiConfigError, testAiModelConnection } from "./grader.js";
 import { getBank, reloadQuestionBank } from "./questionBank.js";
 import { getWordBank, reloadWordBank, resolveAudioPathByName } from "./wordBank.js";
 
 const QUESTIONS_PAGE_MAX = 200;
 const WORDS_PAGE_MAX = 200;
+const WALLET_PAGE_MAX = 200;
 
 export function registerAdminRoutes(
   app: Express,
@@ -60,6 +61,51 @@ export function registerAdminRoutes(
     } catch (error) {
       const message = error instanceof Error ? error.message : "模型连接测试失败。";
       res.status(error instanceof AiConfigError ? 400 : 502).json({ error: message });
+    }
+  });
+
+  // --- Wallet (钱包) ---
+
+  app.get("/api/admin/wallet-settings", requireAdmin, (_req, res) => {
+    res.json(database.getWalletSettings());
+  });
+
+  app.patch("/api/admin/wallet-settings", requireAdmin, (req, res) => {
+    try {
+      res.json(database.updateWalletSettings(readWalletSettingsInput(req.body)));
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : "钱包配置保存失败。" });
+    }
+  });
+
+  app.get("/api/admin/wallet/transactions", requireAdmin, (req, res) => {
+    const { limit, offset } = pageParams(req, WALLET_PAGE_MAX);
+    const type = String(req.query.type || "").trim() || undefined;
+    const { total, items } = database.walletTransactions(limit, offset, type);
+    res.json({
+      total,
+      limit,
+      offset,
+      balanceCents: database.getWalletBalance(),
+      items: items.map(walletTxToJson)
+    });
+  });
+
+  app.post("/api/admin/wallet/withdrawals/:id/paid", requireAdmin, (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || !database.markWithdrawalPaid(id)) {
+      res.status(404).json({ error: "没有找到待发放的提现记录。" });
+      return;
+    }
+    res.json({ ok: true });
+  });
+
+  app.post("/api/admin/wallet/adjust", requireAdmin, (req, res) => {
+    try {
+      const result = database.adjustWallet(Number(req.body?.amountCents), String(req.body?.note || ""));
+      res.json({ ok: true, balanceCents: result.balance });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : "钱包调整失败。" });
     }
   });
 
@@ -380,6 +426,39 @@ function readModelSettingsInput(body: unknown, current: ReturnType<AppDatabase["
 }
 
 // --- helpers ---
+
+export function walletTxToJson(row: WalletTransactionRow) {
+  return {
+    id: row.id,
+    type: row.type,
+    amountCents: row.amount_cents,
+    source: row.source,
+    refId: row.ref_id,
+    submissionId: row.submission_id,
+    score: row.score,
+    status: row.status,
+    paidAt: row.paid_at,
+    note: row.note,
+    createdAt: row.created_at
+  };
+}
+
+// 各字段缺省时保持现值;非数字会传 NaN 进 db 校验并以中文报错拒绝。
+function readWalletSettingsInput(body: unknown): Parameters<AppDatabase["updateWalletSettings"]>[0] {
+  const record = (body || {}) as Record<string, unknown>;
+  const read = (key: string): number | undefined => {
+    const value = record[key];
+    if (value === undefined || value === null || value === "") return undefined;
+    return Number(value);
+  };
+  return {
+    rewardMinCents: read("rewardMinCents"),
+    rewardMaxCents: read("rewardMaxCents"),
+    penaltyMinCents: read("penaltyMinCents"),
+    penaltyMaxCents: read("penaltyMaxCents"),
+    withdrawThresholdCents: read("withdrawThresholdCents")
+  };
+}
 
 function pageParams(req: Request, max: number): { limit: number; offset: number } {
   const rawLimit = Number(req.query.limit);

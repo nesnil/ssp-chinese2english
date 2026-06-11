@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import express, { type NextFunction, type Request, type Response } from "express";
 import { loadConfig, publicDir } from "./config.js";
-import { registerAdminRoutes } from "./adminRoutes.js";
+import { registerAdminRoutes, walletTxToJson } from "./adminRoutes.js";
 import { AppDatabase, computeDayProgress } from "./db.js";
 import { AiConfigError, gradeAnswer, gradeExampleRecall, gradeWordRecall } from "./grader.js";
 import { getBank, getDayQuestions, getQuestion, initQuestionBank, loadSeedQuestionBank, toPublicQuestion } from "./questionBank.js";
@@ -395,7 +395,7 @@ app.post("/api/word-submissions", requireAuth, async (req, res, next) => {
       phase === "word"
         ? await gradeWordRecall(currentGradeConfig(), word, { wordAnswer, meaningAnswers })
         : await gradeExampleRecall(currentGradeConfig(), word, exampleAnswers);
-    database.saveWordSubmission({
+    const submissionId = database.saveWordSubmission({
       sessionId,
       wordId,
       phase,
@@ -405,13 +405,22 @@ app.post("/api/word-submissions", requireAuth, async (req, res, next) => {
       grade
     });
     const sessionComplete = sessionId ? database.completeWordSessionIfReady(sessionId, config.reviewScoreThreshold) : false;
+    const wallet = database.settleSubmissionWallet({
+      source: "word",
+      wordId,
+      phase,
+      submissionId,
+      score: grade.score,
+      errorSummary: grade.errorSummary
+    });
 
     res.json({
       wordId,
       phase,
       grade,
       sessionComplete,
-      details: toPublicWordDetails(word)
+      details: toPublicWordDetails(word),
+      wallet
     });
   } catch (error) {
     if (error instanceof AiConfigError) {
@@ -448,7 +457,7 @@ app.post("/api/submissions", requireAuth, async (req, res, next) => {
     }
 
     const grade = await gradeAnswer(currentGradeConfig(), question, answer);
-    database.saveSubmission({
+    const submissionId = database.saveSubmission({
       questionId,
       season: question.season,
       day: question.day,
@@ -459,8 +468,15 @@ app.post("/api/submissions", requireAuth, async (req, res, next) => {
       mode
     });
     const attemptStats = mode === "day" && attemptId ? database.completeDayAttemptIfReady(attemptId) : null;
+    const wallet = database.settleSubmissionWallet({
+      source: "sentence",
+      questionId,
+      submissionId,
+      score: grade.score,
+      errorSummary: grade.errorSummary
+    });
 
-    res.json({ questionId, grade, attempt: attemptStats });
+    res.json({ questionId, grade, attempt: attemptStats, wallet });
   } catch (error) {
     if (error instanceof AiConfigError) {
       res.status(503).json({ error: error.message });
@@ -492,6 +508,32 @@ app.get("/api/progress", requireAuth, (_req, res) => {
     reviewMasteredQuestionCount: reviewStats.reviewMasteredQuestionCount,
     recent: database.recentSubmissions(8)
   });
+});
+
+app.get("/api/wallet", requireAuth, (_req, res) => {
+  const settings = database.getWalletSettings();
+  const balanceCents = database.getWalletBalance();
+  const { items } = database.walletTransactions(50, 0);
+  res.json({
+    balanceCents,
+    thresholdCents: settings.withdrawThresholdCents,
+    canWithdraw: balanceCents >= settings.withdrawThresholdCents,
+    transactions: items.map(walletTxToJson),
+    withdrawals: database.listWithdrawals().map(walletTxToJson)
+  });
+});
+
+app.post("/api/wallet/withdraw", requireAuth, (_req, res) => {
+  try {
+    const withdrawal = database.createWithdrawal();
+    res.json({
+      ok: true,
+      withdrawal: { id: withdrawal.id, amountCents: withdrawal.amountCents, status: "pending" },
+      balanceCents: withdrawal.balance
+    });
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : "提现失败,请稍后再试。" });
+  }
 });
 
 registerAdminRoutes(app, database, config, requireAdmin);
