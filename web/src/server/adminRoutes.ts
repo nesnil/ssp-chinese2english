@@ -1,6 +1,7 @@
 import type { Express, Request, RequestHandler } from "express";
-import type { AppConfig, WordDefinition, WordExample } from "./types.js";
+import type { AiModelConfig, AppConfig, WordDefinition, WordExample } from "./types.js";
 import { AppDatabase } from "./db.js";
+import { AiConfigError, testAiModelConnection } from "./grader.js";
 import { getBank, reloadQuestionBank } from "./questionBank.js";
 import { getWordBank, reloadWordBank, resolveAudioPathByName } from "./wordBank.js";
 
@@ -13,6 +14,55 @@ export function registerAdminRoutes(
   config: AppConfig,
   requireAdmin: RequestHandler
 ): void {
+  // --- Model settings (AI 批改模型) ---
+
+  app.get("/api/admin/model-settings", requireAdmin, (_req, res) => {
+    res.json(adminModelSettings(database.getAiModelSettings(config)));
+  });
+
+  app.patch("/api/admin/model-settings", requireAdmin, (req, res) => {
+    const current = database.getAiModelSettings(config);
+    const input = readModelSettingsInput(req.body, current);
+
+    if (!input.baseUrl || !input.apiKey || !input.model) {
+      res.status(400).json({ error: "请填写 Base URL、API Key 和模型名称。" });
+      return;
+    }
+
+    try {
+      res.json(
+        adminModelSettings(
+          database.updateAiModelSettings({
+            baseUrl: input.baseUrl,
+            apiKey: input.apiKey,
+            model: input.model,
+            timeoutMs: input.timeoutMs
+          })
+        )
+      );
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : "模型配置保存失败。" });
+    }
+  });
+
+  app.post("/api/admin/model-settings/test", requireAdmin, async (req, res) => {
+    const current = database.getAiModelSettings(config);
+    const input = readModelSettingsInput(req.body, current);
+
+    if (!input.baseUrl || !input.apiKey || !input.model) {
+      res.status(400).json({ error: "请填写 Base URL、API Key 和模型名称后再测试。" });
+      return;
+    }
+
+    try {
+      await testAiModelConnection(input);
+      res.json({ ok: true, message: "模型连接测试通过。" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "模型连接测试失败。";
+      res.status(error instanceof AiConfigError ? 400 : 502).json({ error: message });
+    }
+  });
+
   // --- Questions (中译英) ---
 
   // Season/Day tree for the admin filter dropdowns.
@@ -304,6 +354,28 @@ function adminWord(row: NonNullable<ReturnType<AppDatabase["getWordRow"]>>) {
     examples: parseArray<WordExample>(row.examples_json),
     tags: parseArray<string>(row.tags_json),
     hasAudio: Boolean(row.audio_path)
+  };
+}
+
+function adminModelSettings(settings: ReturnType<AppDatabase["getAiModelSettings"]>) {
+  return {
+    baseUrl: settings.baseUrl || "",
+    model: settings.model || "",
+    timeoutMs: settings.timeoutMs,
+    configured: settings.configured,
+    apiKeySet: Boolean(settings.apiKey),
+    updatedAt: settings.updatedAt
+  };
+}
+
+function readModelSettingsInput(body: unknown, current: ReturnType<AppDatabase["getAiModelSettings"]>): AiModelConfig {
+  const payload = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+  const rawTimeoutMs = Number(payload.timeoutMs);
+  return {
+    baseUrl: String(payload.baseUrl || "").trim(),
+    apiKey: String(payload.apiKey || "").trim() || current.apiKey || "",
+    model: String(payload.model || "").trim(),
+    timeoutMs: Number.isFinite(rawTimeoutMs) ? rawTimeoutMs : current.timeoutMs
   };
 }
 

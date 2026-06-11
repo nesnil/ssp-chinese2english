@@ -129,3 +129,41 @@ test("reference meta round-trips", () => {
   assert.equal(db.getReferenceMeta("zhongkao.matchedSourceRows"), "1650");
   assert.equal(db.getReferenceMeta("missing"), null);
 });
+
+test("AI model settings fall back to startup config and can be updated", () => {
+  const db = makeDatabase();
+  const startup = {
+    port: 3000,
+    databasePath: "ignored.sqlite",
+    deepseekBaseUrl: "https://api.deepseek.com",
+    deepseekApiKey: "startup-key",
+    deepseekModel: "deepseek-v4-flash",
+    aiTimeoutMs: 30000,
+    reviewScoreThreshold: 80,
+    nodeEnv: "test"
+  };
+
+  const initial = db.getAiModelSettings(startup);
+  assert.equal(initial.baseUrl, "https://api.deepseek.com");
+  assert.equal(initial.apiKey, "startup-key");
+  assert.equal(initial.model, "deepseek-v4-flash");
+  assert.equal(initial.timeoutMs, 30000);
+  assert.equal(initial.configured, true);
+
+  const saved = db.updateAiModelSettings({
+    baseUrl: "https://api.example.test/v1",
+    apiKey: "saved-key",
+    model: "custom-model",
+    timeoutMs: 45000
+  });
+  assert.equal(saved.baseUrl, "https://api.example.test/v1");
+  assert.equal(saved.apiKey, "saved-key");
+  assert.equal(saved.model, "custom-model");
+  assert.equal(saved.timeoutMs, 45000);
+
+  const loaded = db.getAiModelSettings(startup);
+  assert.equal(loaded.baseUrl, "https://api.example.test/v1");
+  assert.equal(loaded.apiKey, "saved-key");
+  assert.equal(loaded.model, "custom-model");
+  assert.equal(loaded.timeoutMs, 45000);
+});

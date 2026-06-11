@@ -1839,6 +1839,12 @@ button.history-card {
   border-radius: 18px;
 }
 
+.soft-button.small {
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 18px;
+}
+
 .primary-button.danger {
   background: linear-gradient(180deg, #ff7a7a, #e94b4b);
   box-shadow: 0 7px 0 #b52d2d;
@@ -1887,6 +1893,57 @@ button.history-card {
   margin: 0;
   color: #6b7c98;
   font-size: 14px;
+}
+
+.admin-settings-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow: 0 8px 22px rgba(47, 79, 122, 0.08);
+}
+
+.admin-settings-head h2 {
+  margin: 8px 0 0;
+  color: #243047;
+  font-size: 22px;
+}
+
+.admin-settings-head small {
+  color: #7c8aa3;
+  font-weight: 800;
+  text-align: right;
+}
+
+.admin-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.admin-status.ready {
+  color: #16723d;
+  background: #e4fbdf;
+}
+
+.admin-status.missing {
+  color: #a35f00;
+  background: #fff0c4;
+}
+
+.admin-settings-form {
+  max-width: 720px;
+  padding: 18px;
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow: 0 8px 22px rgba(47, 79, 122, 0.08);
 }
 
 .admin-filter {
@@ -2340,6 +2397,7 @@ button.history-card {
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 12px;
 }
 

@@ -2,7 +2,7 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { createHash, randomBytes } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
-import type { AppConfig, GradeResult, WordEntry } from "./types.js";
+import type { AiModelConfig, AiModelSettings, AppConfig, GradeResult, WordEntry } from "./types.js";
 
 type SubmissionRow = {
   question_id: string;
@@ -236,6 +236,12 @@ export class AppDatabase {
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS model_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
       CREATE TABLE IF NOT EXISTS word_sessions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         scope_tag TEXT NOT NULL,
@@ -451,6 +457,64 @@ export class AppDatabase {
   getReferenceMeta(key: string): string | null {
     const row = this.db.prepare("SELECT value FROM reference_meta WHERE key = ?").get(key) as { value: string } | undefined;
     return row ? row.value : null;
+  }
+
+  getAiModelSettings(fallback: AppConfig): AiModelSettings {
+    const rows = this.db.prepare("SELECT key, value, updated_at FROM model_settings").all() as Array<{
+      key: string;
+      value: string;
+      updated_at: string;
+    }>;
+    const values = new Map(rows.map((row) => [row.key, row.value]));
+    const updatedAt =
+      rows.reduce<string | null>((latest, row) => {
+        if (!latest || row.updated_at > latest) return row.updated_at;
+        return latest;
+      }, null) || null;
+
+    const timeoutMs = numberSetting(values.get("timeout_ms"), fallback.aiTimeoutMs);
+    const settings = {
+      baseUrl: stringSetting(values.get("base_url"), fallback.deepseekBaseUrl),
+      apiKey: stringSetting(values.get("api_key"), fallback.deepseekApiKey),
+      model: stringSetting(values.get("model"), fallback.deepseekModel),
+      timeoutMs,
+      configured: false,
+      updatedAt
+    };
+    settings.configured = Boolean(settings.baseUrl && settings.apiKey && settings.model);
+    return settings;
+  }
+
+  updateAiModelSettings(input: AiModelConfig): AiModelSettings {
+    const baseUrl = (input.baseUrl || "").trim();
+    const apiKey = (input.apiKey || "").trim();
+    const model = (input.model || "").trim();
+    const timeoutMs = numberSetting(String(input.timeoutMs), 30000);
+    if (!baseUrl || !apiKey || !model) {
+      throw new Error("请填写 Base URL、API Key 和模型名称。");
+    }
+    this.db.exec("BEGIN");
+    try {
+      const upsert = this.db.prepare(`
+        INSERT INTO model_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+      `);
+      upsert.run("base_url", baseUrl);
+      upsert.run("api_key", apiKey);
+      upsert.run("model", model);
+      upsert.run("timeout_ms", String(timeoutMs));
+      this.db.exec("COMMIT");
+      return this.getAiModelSettings({
+        port: 3000,
+        databasePath: "",
+        aiTimeoutMs: timeoutMs,
+        reviewScoreThreshold: 80,
+        nodeEnv: "production"
+      });
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
   }
 
   allQuestionRows(): QuestionRow[] {
@@ -1417,6 +1481,17 @@ export function computeDayProgress(latestRows: SubmissionRow[], dayQuestionCount
     });
   }
   return result;
+}
+
+function stringSetting(value: string | undefined, fallback: string | undefined): string | undefined {
+  const text = value === undefined ? fallback : value;
+  return text && text.trim() ? text.trim() : undefined;
+}
+
+function numberSetting(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.min(Math.max(Math.round(parsed), 1000), 120000);
 }
 
 function hashToken(token: string): string {
