@@ -35,10 +35,11 @@ app.use(express.json({ limit: "64kb" }));
 const authCookieName = "c2e_session";
 
 app.get("/api/health", (_req, res) => {
+  const aiSettings = database.getAiModelSettings(config);
   res.json({
     ok: true,
     database: true,
-    aiConfigured: Boolean(config.deepseekBaseUrl && config.deepseekApiKey && config.deepseekModel),
+    aiConfigured: aiSettings.configured,
     authConfigured: Boolean(config.appPassword && config.sessionSecret),
     questionBank: {
       totalDays: getBank().totalDays,
@@ -392,8 +393,8 @@ app.post("/api/word-submissions", requireAuth, async (req, res, next) => {
 
     const grade =
       phase === "word"
-        ? await gradeWordRecall(config, word, { wordAnswer, meaningAnswers })
-        : await gradeExampleRecall(config, word, exampleAnswers);
+        ? await gradeWordRecall(currentGradeConfig(), word, { wordAnswer, meaningAnswers })
+        : await gradeExampleRecall(currentGradeConfig(), word, exampleAnswers);
     database.saveWordSubmission({
       sessionId,
       wordId,
@@ -446,7 +447,7 @@ app.post("/api/submissions", requireAuth, async (req, res, next) => {
       }
     }
 
-    const grade = await gradeAnswer(config, question, answer);
+    const grade = await gradeAnswer(currentGradeConfig(), question, answer);
     database.saveSubmission({
       questionId,
       season: question.season,
@@ -537,6 +538,17 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
     return;
   }
   next();
+}
+
+function currentGradeConfig() {
+  const settings = database.getAiModelSettings(config);
+  return {
+    baseUrl: settings.baseUrl,
+    apiKey: settings.apiKey,
+    model: settings.model,
+    timeoutMs: settings.timeoutMs,
+    reviewScoreThreshold: config.reviewScoreThreshold
+  };
 }
 
 function readSessionToken(req: Request): string | null {

@@ -1744,6 +1744,14 @@ type AdminWord = {
 };
 
 type WordTag = { id: string; label: string; systemGenerated: boolean; count: number };
+type AdminModelSettingsData = {
+  baseUrl: string;
+  model: string;
+  timeoutMs: number;
+  configured: boolean;
+  apiKeySet: boolean;
+  updatedAt: string | null;
+};
 
 const ADMIN_PAGE_SIZE = 5;
 
@@ -1856,7 +1864,7 @@ function AdminLoginScreen({ onLogin, onCancel }: { onLogin: () => void; onCancel
 }
 
 function AdminApp({ onExit }: { onExit: () => void }) {
-  const [section, setSection] = useState<"questions" | "words">("questions");
+  const [section, setSection] = useState<"questions" | "words" | "model">("questions");
 
   return (
     <main className="app-shell admin-shell">
@@ -1868,7 +1876,7 @@ function AdminApp({ onExit }: { onExit: () => void }) {
           <div>
             <p>后台管理</p>
             <strong>
-              题库与单词
+              题库与设置
               <span className="app-version">{APP_VERSION}</span>
             </strong>
           </div>
@@ -1886,8 +1894,12 @@ function AdminApp({ onExit }: { onExit: () => void }) {
           <BookOpen size={19} />
           单词
         </button>
+        <button className={section === "model" ? "active" : ""} onClick={() => setSection("model")}>
+          <Settings size={19} />
+          模型
+        </button>
       </nav>
-      {section === "questions" ? <AdminQuestions /> : <AdminWords />}
+      {section === "questions" ? <AdminQuestions /> : section === "words" ? <AdminWords /> : <AdminModelSettings />}
     </main>
   );
 }
@@ -2311,6 +2323,191 @@ function AdminWords() {
             load();
           }}
         />
+      ) : null}
+    </section>
+  );
+}
+
+function AdminModelSettings() {
+  const [settings, setSettings] = useState<AdminModelSettingsData | null>(null);
+  const [baseUrl, setBaseUrl] = useState("");
+  const [model, setModel] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [timeoutMs, setTimeoutMs] = useState("30000");
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [error, setError] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  async function load() {
+    setLoading(true);
+    setError("");
+    setSaved(false);
+    setTestResult(null);
+    try {
+      const data = (await api("/api/admin/model-settings")) as AdminModelSettingsData;
+      setSettings(data);
+      setBaseUrl(data.baseUrl);
+      setModel(data.model);
+      setTimeoutMs(String(data.timeoutMs || 30000));
+      setApiKey("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "模型配置加载失败");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function markChanged() {
+    setSaved(false);
+    setTestResult(null);
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function testConnection() {
+    setTesting(true);
+    setError("");
+    setSaved(false);
+    setTestResult(null);
+    try {
+      const data = await api("/api/admin/model-settings/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          baseUrl,
+          model,
+          apiKey,
+          timeoutMs: Number(timeoutMs)
+        })
+      });
+      setTestResult({ ok: true, message: data.message || "模型连接测试通过。" });
+    } catch (err) {
+      setTestResult({ ok: false, message: err instanceof Error ? err.message : "模型连接测试失败" });
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setSubmitting(true);
+    setError("");
+    setSaved(false);
+    try {
+      const data = (await api("/api/admin/model-settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          baseUrl,
+          model,
+          apiKey,
+          timeoutMs: Number(timeoutMs)
+        })
+      })) as AdminModelSettingsData;
+      setSettings(data);
+      setBaseUrl(data.baseUrl);
+      setModel(data.model);
+      setTimeoutMs(String(data.timeoutMs));
+      setApiKey("");
+      setSaved(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "保存失败");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <section className="admin-panel">
+      <div className="admin-settings-head">
+        <div>
+          <span className={`admin-status ${settings?.configured ? "ready" : "missing"}`}>
+            {settings?.configured ? "已配置" : "未配置"}
+          </span>
+          <h2>模型参数</h2>
+        </div>
+        {settings?.updatedAt ? <small>更新于 {formatDate(settings.updatedAt)}</small> : null}
+      </div>
+
+      {loading ? <LoadingScreen compact /> : null}
+      {error ? <div className="notice danger">{error}</div> : null}
+      {saved ? <div className="notice">模型配置已保存。</div> : null}
+
+      {!loading ? (
+        <form className="admin-form admin-settings-form" onSubmit={submit}>
+          <label>
+            Base URL
+            <input
+              value={baseUrl}
+              onChange={(event) => {
+                setBaseUrl(event.target.value);
+                markChanged();
+              }}
+              placeholder="https://api.deepseek.com"
+              required
+            />
+          </label>
+          <label>
+            模型名称
+            <input
+              value={model}
+              onChange={(event) => {
+                setModel(event.target.value);
+                markChanged();
+              }}
+              placeholder="deepseek-v4-flash"
+              required
+            />
+          </label>
+          <label>
+            API Key
+            <input
+              type="password"
+              value={apiKey}
+              onChange={(event) => {
+                setApiKey(event.target.value);
+                markChanged();
+              }}
+              placeholder={settings?.apiKeySet ? "已保存，留空不变" : "请输入 API Key"}
+              required={!settings?.apiKeySet}
+            />
+          </label>
+          <label>
+            超时（毫秒）
+            <input
+              type="number"
+              min={1000}
+              max={120000}
+              step={1000}
+              value={timeoutMs}
+              onChange={(event) => {
+                setTimeoutMs(event.target.value);
+                markChanged();
+              }}
+              required
+            />
+          </label>
+          {testResult ? <div className={`notice ${testResult.ok ? "" : "danger"}`}>{testResult.message}</div> : null}
+          <div className="admin-form-actions">
+            <button type="button" className="link-button" onClick={load} disabled={submitting}>
+              <RotateCcw size={16} />
+              重新加载
+            </button>
+            <button type="button" className="soft-button small" onClick={testConnection} disabled={submitting || testing}>
+              {testing ? <Loader2 className="spin" size={18} /> : <Sparkles size={18} />}
+              测试连接
+            </button>
+            <button className="primary-button small" disabled={submitting}>
+              {submitting ? <Loader2 className="spin" size={18} /> : <Check size={18} />}
+              保存模型
+            </button>
+          </div>
+        </form>
       ) : null}
     </section>
   );

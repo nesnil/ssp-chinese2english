@@ -40,6 +40,18 @@ export type GradeResult = {
   errorSummary?: string;
 };
 
+export type AiModelConfig = {
+  baseUrl?: string;
+  apiKey?: string;
+  model?: string;
+  timeoutMs: number;
+};
+
+export type AiModelSettings = AiModelConfig & {
+  configured: boolean;
+  updatedAt: string | null;
+};
+
 export type WordDefinition = {
   phonetic: string;
   partOfSpeech: string;

@@ -1,4 +1,4 @@
-import type { AppConfig, GradeResult, Question, WordEntry } from "./types.js";
+import type { AiModelConfig, GradeResult, Question, WordEntry } from "./types.js";
 
 type ChatMessage = {
   role: "system" | "user";
@@ -7,19 +7,23 @@ type ChatMessage = {
 
 export class AiConfigError extends Error {}
 
+type GradeRuntimeConfig = AiModelConfig & {
+  reviewScoreThreshold: number;
+};
+
 function chatCompletionsUrl(baseUrl: string): string {
   const trimmed = baseUrl.replace(/\/+$/, "");
   if (trimmed.endsWith("/chat/completions")) return trimmed;
   return `${trimmed}/chat/completions`;
 }
 
-export async function gradeAnswer(config: AppConfig, question: Question, answer: string): Promise<GradeResult> {
-  if (!config.deepseekBaseUrl || !config.deepseekApiKey || !config.deepseekModel) {
-    throw new AiConfigError("DeepSeek 配置不完整，请设置 DEEPSEEK_BASE_URL、DEEPSEEK_API_KEY 和 DEEPSEEK_MODEL。");
+export async function gradeAnswer(config: GradeRuntimeConfig, question: Question, answer: string): Promise<GradeResult> {
+  if (!config.baseUrl || !config.apiKey || !config.model) {
+    throw new AiConfigError("AI 模型配置不完整，请管理员先在后台配置 Base URL、API Key 和模型名称。");
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), config.aiTimeoutMs);
+  const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
 
   const messages: ChatMessage[] = [
     {
@@ -49,15 +53,15 @@ export async function gradeAnswer(config: AppConfig, question: Question, answer:
   ];
 
   try {
-    const response = await fetch(chatCompletionsUrl(config.deepseekBaseUrl), {
+    const response = await fetch(chatCompletionsUrl(config.baseUrl), {
       method: "POST",
       signal: controller.signal,
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${config.deepseekApiKey}`
+        Authorization: `Bearer ${config.apiKey}`
       },
       body: JSON.stringify({
-        model: config.deepseekModel,
+        model: config.model,
         messages,
         temperature: 0.35,
         response_format: { type: "json_object" }
@@ -89,8 +93,70 @@ export async function gradeAnswer(config: AppConfig, question: Question, answer:
   }
 }
 
+export async function testAiModelConnection(config: AiModelConfig): Promise<void> {
+  if (!config.baseUrl || !config.apiKey || !config.model) {
+    throw new AiConfigError("AI 模型配置不完整，请填写 Base URL、API Key 和模型名称。");
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
+
+  try {
+    const response = await fetch(chatCompletionsUrl(config.baseUrl), {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.apiKey}`
+      },
+      body: JSON.stringify({
+        model: config.model,
+        messages: [
+          {
+            role: "system",
+            content: "请严格输出 JSON，不要 Markdown。"
+          },
+          {
+            role: "user",
+            content: JSON.stringify({
+              task: "连接测试",
+              outputSchema: { ok: "boolean" }
+            })
+          }
+        ],
+        temperature: 0,
+        max_tokens: 32,
+        response_format: { type: "json_object" }
+      })
+    });
+
+    const bodyText = await response.text();
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${bodyText.slice(0, 240)}`);
+    }
+
+    const body = JSON.parse(bodyText) as { choices?: Array<{ message?: { content?: string } }> };
+    const content = body.choices?.[0]?.message?.content;
+    if (!content) {
+      throw new Error("模型响应里没有 message content。");
+    }
+    JSON.parse(content);
+  } catch (error) {
+    if (error instanceof AiConfigError) throw error;
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error("连接测试超时，请检查 Base URL、模型名称或网络状态。");
+    }
+    if (error instanceof SyntaxError) {
+      throw new Error("模型返回内容不是有效 JSON。");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function gradeWordRecall(
-  config: AppConfig,
+  config: GradeRuntimeConfig,
   word: WordEntry,
   input: { wordAnswer: string; meaningAnswers: Record<string, string> }
 ): Promise<GradeResult> {
@@ -121,7 +187,7 @@ export async function gradeWordRecall(
   );
 }
 
-export async function gradeExampleRecall(config: AppConfig, word: WordEntry, answers: string[]): Promise<GradeResult> {
+export async function gradeExampleRecall(config: GradeRuntimeConfig, word: WordEntry, answers: string[]): Promise<GradeResult> {
   const examples = word.examples.length ? word.examples : [{ english: "", chinese: "" }];
   // 把每句的中文、参考英文、学生答案配对，让 AI 一次综合批改、给一个总分。
   const items = examples.map((example, index) => ({
@@ -157,29 +223,29 @@ export async function gradeExampleRecall(config: AppConfig, word: WordEntry, ans
 }
 
 async function gradeWithAi(
-  config: AppConfig,
+  config: GradeRuntimeConfig,
   messages: ChatMessage[],
   referenceAnswer: string,
   threshold: number,
   fallbackSuggestion: string
 ): Promise<GradeResult> {
-  if (!config.deepseekBaseUrl || !config.deepseekApiKey || !config.deepseekModel) {
-    throw new AiConfigError("DeepSeek 配置不完整，请设置 DEEPSEEK_BASE_URL、DEEPSEEK_API_KEY 和 DEEPSEEK_MODEL。");
+  if (!config.baseUrl || !config.apiKey || !config.model) {
+    throw new AiConfigError("AI 模型配置不完整，请管理员先在后台配置 Base URL、API Key 和模型名称。");
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), config.aiTimeoutMs);
+  const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
 
   try {
-    const response = await fetch(chatCompletionsUrl(config.deepseekBaseUrl), {
+    const response = await fetch(chatCompletionsUrl(config.baseUrl), {
       method: "POST",
       signal: controller.signal,
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${config.deepseekApiKey}`
+        Authorization: `Bearer ${config.apiKey}`
       },
       body: JSON.stringify({
-        model: config.deepseekModel,
+        model: config.model,
         messages,
         temperature: 0.25,
         response_format: { type: "json_object" }

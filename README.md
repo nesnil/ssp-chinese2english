@@ -26,6 +26,7 @@
 - 入口：登录页的「管理员登录」链接，或 `#admin` URL hash，或管理员登录后顶栏的齿轮。
 - **题库管理**：列出全部中译英题目，按 Season / Day 筛选、关键词搜索、分页；增删改查（参考答案可改）。
 - **单词管理**：列出全部单词，按**分类**（中考考纲/高中/四六级候选等）筛选、**A–Z 首字母**筛选、搜索、分页；增删改查，编辑词性（下拉）、释义、例句、分类（多选），列表内可试听发音。
+- **AI 模型配置**：在后台「模型」页填写批改用的 Base URL、API Key、模型名、超时（毫秒），保存即时生效、无需改环境变量重启；提供「测试连接」按钮先验证再保存。保存的配置存入 SQLite（`model_settings` 表），优先级高于启动时的 `DEEPSEEK_*` 环境变量；未保存任何配置时回退到环境变量。API Key 仅写不回显。
 - 编辑即时生效（写入 SQLite 后内存缓存重建），无需重新构建或部署。**ID 稳定**：题目/单词的关联键不变，删除只软警告、不级联删历史记录。
 
 ### 其他
@@ -130,9 +131,9 @@ docker build --build-arg VITE_BASE_PATH=/subpath/ -t c2e-practice:latest .
 | --- | --- |
 | `APP_PASSWORD` | 家庭登录口令（孩子练习用）。|
 | `SESSION_SECRET` | Cookie 签名密钥。|
-| `DEEPSEEK_BASE_URL` | DeepSeek OpenAI 兼容 API 地址。|
-| `DEEPSEEK_API_KEY` | DeepSeek Key。|
-| `DEEPSEEK_MODEL` | 模型名。|
+| `DEEPSEEK_BASE_URL` | AI 批改的 OpenAI 兼容 API 地址（默认值，可被后台「模型」配置覆盖）。|
+| `DEEPSEEK_API_KEY` | AI 批改 Key（默认值，可被后台「模型」配置覆盖）。|
+| `DEEPSEEK_MODEL` | 模型名（默认值，可被后台「模型」配置覆盖）。|
 
 **可选：**
 
@@ -141,8 +142,10 @@ docker build --build-arg VITE_BASE_PATH=/subpath/ -t c2e-practice:latest .
 | `ADMIN_PASSWORD` | 未设 | 启用后台管理；不设则 `/api/admin/login` 返回 503。|
 | `PORT` | `3000` | 容器内端口。|
 | `DATABASE_PATH` | `/app/data/c2e.sqlite` | SQLite 文件路径。|
-| `AI_TIMEOUT_MS` | `30000` | AI 批改超时。|
+| `AI_TIMEOUT_MS` | `30000` | AI 批改超时（默认值，可被后台「模型」配置覆盖）。|
 | `REVIEW_SCORE_THRESHOLD` | `80` | 进入复习的分数线。|
+
+`DEEPSEEK_*` / `AI_TIMEOUT_MS` 是 AI 批改的**启动默认值**；管理员在后台「模型」页保存配置后，运行时改用 SQLite 里的配置（优先级更高），无需改环境变量重启。未保存任何后台配置且环境变量也未设时，AI 批改相关接口返回 503。
 
 未配置 AI/鉴权变量时服务仍能启动，但 `/api/health` 会报告未配置，相关接口返回 503。
 
