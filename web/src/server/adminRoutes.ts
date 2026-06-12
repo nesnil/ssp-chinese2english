@@ -452,8 +452,10 @@ function readWalletSettingsInput(body: unknown): Parameters<AppDatabase["updateW
     return Number(value);
   };
   return {
+    rewardScore: read("rewardScore"),
     rewardMinCents: read("rewardMinCents"),
     rewardMaxCents: read("rewardMaxCents"),
+    penaltyScoreBelow: read("penaltyScoreBelow"),
     penaltyMinCents: read("penaltyMinCents"),
     penaltyMaxCents: read("penaltyMaxCents"),
     withdrawThresholdCents: read("withdrawThresholdCents")

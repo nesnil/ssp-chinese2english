@@ -1469,8 +1469,10 @@ export class AppDatabase {
         return latest;
       }, null) || null;
     return {
+      rewardScore: scoreSetting(values.get("reward_score"), WALLET_DEFAULTS.rewardScore),
       rewardMinCents: centsSetting(values.get("reward_min_cents"), WALLET_DEFAULTS.rewardMinCents),
       rewardMaxCents: centsSetting(values.get("reward_max_cents"), WALLET_DEFAULTS.rewardMaxCents),
+      penaltyScoreBelow: scoreSetting(values.get("penalty_score_below"), WALLET_DEFAULTS.penaltyScoreBelow),
       penaltyMinCents: centsSetting(values.get("penalty_min_cents"), WALLET_DEFAULTS.penaltyMinCents),
       penaltyMaxCents: centsSetting(values.get("penalty_max_cents"), WALLET_DEFAULTS.penaltyMaxCents),
       withdrawThresholdCents: centsSetting(values.get("withdraw_threshold_cents"), WALLET_DEFAULTS.withdrawThresholdCents),
@@ -1481,12 +1483,23 @@ export class AppDatabase {
   updateWalletSettings(input: Partial<Omit<WalletSettings, "updatedAt">>): WalletSettings {
     const current = this.getWalletSettings();
     const next = {
+      rewardScore: input.rewardScore ?? current.rewardScore,
       rewardMinCents: input.rewardMinCents ?? current.rewardMinCents,
       rewardMaxCents: input.rewardMaxCents ?? current.rewardMaxCents,
+      penaltyScoreBelow: input.penaltyScoreBelow ?? current.penaltyScoreBelow,
       penaltyMinCents: input.penaltyMinCents ?? current.penaltyMinCents,
       penaltyMaxCents: input.penaltyMaxCents ?? current.penaltyMaxCents,
       withdrawThresholdCents: input.withdrawThresholdCents ?? current.withdrawThresholdCents
     };
+    if (!Number.isInteger(next.rewardScore) || next.rewardScore < 1 || next.rewardScore > 100) {
+      throw new Error("奖励触发分数需为 1~100 之间的整数。");
+    }
+    if (!Number.isInteger(next.penaltyScoreBelow) || next.penaltyScoreBelow < 0 || next.penaltyScoreBelow > 100) {
+      throw new Error("扣除触发分数需为 0~100 之间的整数。");
+    }
+    if (next.rewardScore < next.penaltyScoreBelow) {
+      throw new Error("奖励触发分数不能低于扣除触发分数。");
+    }
     const fields: Array<[string, number, number]> = [
       ["奖励金额", next.rewardMinCents, 10000],
       ["奖励金额", next.rewardMaxCents, 10000],
@@ -1507,8 +1520,10 @@ export class AppDatabase {
         INSERT INTO wallet_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
       `);
+      upsert.run("reward_score", String(next.rewardScore));
       upsert.run("reward_min_cents", String(next.rewardMinCents));
       upsert.run("reward_max_cents", String(next.rewardMaxCents));
+      upsert.run("penalty_score_below", String(next.penaltyScoreBelow));
       upsert.run("penalty_min_cents", String(next.penaltyMinCents));
       upsert.run("penalty_max_cents", String(next.penaltyMaxCents));
       upsert.run("withdraw_threshold_cents", String(next.withdrawThresholdCents));
@@ -1539,7 +1554,7 @@ export class AppDatabase {
     try {
       let change = 0;
       let reason: WalletChange["reason"] = null;
-      if (input.score === 100) {
+      if (input.score >= settings.rewardScore) {
         // 每个 ref(题目 / 单词+阶段)历史上只奖一次,复习时首次拿到满分同样算。
         const rewarded = this.db
           .prepare("SELECT 1 FROM wallet_transactions WHERE type = 'reward' AND source = ? AND ref_id = ? LIMIT 1")
@@ -1548,7 +1563,7 @@ export class AppDatabase {
           change = randomWholeYuanCents(settings.rewardMinCents, settings.rewardMaxCents);
           reason = "perfect";
         }
-      } else if (input.score < 60) {
+      } else if (input.score < settings.penaltyScoreBelow) {
         // 仅该 ref 的首次有效提交才扣钱(本行已入库,所以"首次"即 COUNT = 1)。
         // error_summary IS NULL 是故意的:首次提交若是 AI 失败,不消耗惩罚判定名额。
         // 复习模式天然不会触发惩罚——复习提交必然不是首次。
@@ -1725,8 +1740,10 @@ function numberSetting(value: string | undefined, fallback: number): number {
 }
 
 const WALLET_DEFAULTS = {
+  rewardScore: 100,
   rewardMinCents: 100,
   rewardMaxCents: 300,
+  penaltyScoreBelow: 60,
   penaltyMinCents: 100,
   penaltyMaxCents: 200,
   withdrawThresholdCents: 1000
@@ -1736,6 +1753,12 @@ const WALLET_DEFAULTS = {
 function centsSetting(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 100 || parsed % 100 !== 0) return fallback;
+  return parsed;
+}
+
+function scoreSetting(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0 || parsed > 100) return fallback;
   return parsed;
 }
 

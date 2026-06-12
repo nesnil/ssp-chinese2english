@@ -53,8 +53,10 @@ export type AiModelSettings = AiModelConfig & {
 };
 
 export type WalletSettings = {
+  rewardScore: number;
   rewardMinCents: number;
   rewardMaxCents: number;
+  penaltyScoreBelow: number;
   penaltyMinCents: number;
   penaltyMaxCents: number;
   withdrawThresholdCents: number;

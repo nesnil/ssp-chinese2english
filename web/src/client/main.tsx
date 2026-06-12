@@ -1950,7 +1950,7 @@ function Feedback({
         {wallet && wallet.reason === "perfect" && wallet.change > 0 ? (
           <p className="money-note gain coin-pop">
             <Coins size={18} />
-            满分奖励 +{formatYuan(wallet.change)}，钱包共 {formatYuan(wallet.balance)}
+            达标奖励 +{formatYuan(wallet.change)}，钱包共 {formatYuan(wallet.balance)}
           </p>
         ) : null}
         {wallet && wallet.reason === "fail" && wallet.change < 0 ? (
@@ -2795,8 +2795,10 @@ function AdminModelSettings() {
 }
 
 type AdminWalletSettingsData = {
+  rewardScore: number;
   rewardMinCents: number;
   rewardMaxCents: number;
+  penaltyScoreBelow: number;
   penaltyMinCents: number;
   penaltyMaxCents: number;
   withdrawThresholdCents: number;
@@ -2809,8 +2811,10 @@ function yuanInputValue(cents: number): string {
 }
 
 function AdminWallet() {
+  const [rewardScore, setRewardScore] = useState("100");
   const [rewardMin, setRewardMin] = useState("1");
   const [rewardMax, setRewardMax] = useState("3");
+  const [penaltyScoreBelow, setPenaltyScoreBelow] = useState("60");
   const [penaltyMin, setPenaltyMin] = useState("1");
   const [penaltyMax, setPenaltyMax] = useState("2");
   const [threshold, setThreshold] = useState("10");
@@ -2830,8 +2834,10 @@ function AdminWallet() {
 
   async function loadSettings() {
     const data = (await api("/api/admin/wallet-settings")) as AdminWalletSettingsData;
+    setRewardScore(String(data.rewardScore));
     setRewardMin(yuanInputValue(data.rewardMinCents));
     setRewardMax(yuanInputValue(data.rewardMaxCents));
+    setPenaltyScoreBelow(String(data.penaltyScoreBelow));
     setPenaltyMin(yuanInputValue(data.penaltyMinCents));
     setPenaltyMax(yuanInputValue(data.penaltyMaxCents));
     setThreshold(yuanInputValue(data.withdrawThresholdCents));
@@ -2873,15 +2879,19 @@ function AdminWallet() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          rewardScore: Number(rewardScore),
           rewardMinCents: Math.round(Number(rewardMin) * 100),
           rewardMaxCents: Math.round(Number(rewardMax) * 100),
+          penaltyScoreBelow: Number(penaltyScoreBelow),
           penaltyMinCents: Math.round(Number(penaltyMin) * 100),
           penaltyMaxCents: Math.round(Number(penaltyMax) * 100),
           withdrawThresholdCents: Math.round(Number(threshold) * 100)
         })
       })) as AdminWalletSettingsData;
+      setRewardScore(String(data.rewardScore));
       setRewardMin(yuanInputValue(data.rewardMinCents));
       setRewardMax(yuanInputValue(data.rewardMaxCents));
+      setPenaltyScoreBelow(String(data.penaltyScoreBelow));
       setPenaltyMin(yuanInputValue(data.penaltyMinCents));
       setPenaltyMax(yuanInputValue(data.penaltyMaxCents));
       setThreshold(yuanInputValue(data.withdrawThresholdCents));
@@ -2944,11 +2954,37 @@ function AdminWallet() {
           <form className="admin-form admin-settings-form" onSubmit={saveSettings}>
             <div className="admin-form-row">
               <label>
-                满分奖励下限（元）
+                奖励触发分数
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  step={1}
+                  value={rewardScore}
+                  onChange={(event) => setRewardScore(event.target.value)}
+                  required
+                />
+              </label>
+              <label>
+                低于此分数扣除
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={penaltyScoreBelow}
+                  onChange={(event) => setPenaltyScoreBelow(event.target.value)}
+                  required
+                />
+              </label>
+            </div>
+            <div className="admin-form-row">
+              <label>
+                奖励金额下限（元）
                 <input type="number" min={1} step={1} value={rewardMin} onChange={(event) => setRewardMin(event.target.value)} required />
               </label>
               <label>
-                满分奖励上限（元）
+                奖励金额上限（元）
                 <input type="number" min={1} step={1} value={rewardMax} onChange={(event) => setRewardMax(event.target.value)} required />
               </label>
             </div>

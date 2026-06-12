@@ -76,13 +76,23 @@ test("wallet settings default to 1~3 yuan reward, 1~2 yuan penalty, 10 yuan thre
   const settings = database.getWalletSettings();
   assert.deepEqual(
     {
+      rewardScore: settings.rewardScore,
       rewardMinCents: settings.rewardMinCents,
       rewardMaxCents: settings.rewardMaxCents,
+      penaltyScoreBelow: settings.penaltyScoreBelow,
       penaltyMinCents: settings.penaltyMinCents,
       penaltyMaxCents: settings.penaltyMaxCents,
       withdrawThresholdCents: settings.withdrawThresholdCents
     },
-    { rewardMinCents: 100, rewardMaxCents: 300, penaltyMinCents: 100, penaltyMaxCents: 200, withdrawThresholdCents: 1000 }
+    {
+      rewardScore: 100,
+      rewardMinCents: 100,
+      rewardMaxCents: 300,
+      penaltyScoreBelow: 60,
+      penaltyMinCents: 100,
+      penaltyMaxCents: 200,
+      withdrawThresholdCents: 1000
+    }
   );
 });
 
@@ -138,6 +148,26 @@ test("scores between 60 and 99 never move the wallet", () => {
   assert.equal(submitSentence(database, { questionId: "S1-D1-Q1", score: 60 }).change, 0);
   assert.equal(submitSentence(database, { questionId: "S1-D1-Q2", score: 99 }).change, 0);
   assert.equal(database.getWalletBalance(), 0);
+});
+
+test("wallet score thresholds are configurable", () => {
+  const database = makeDeterministicDatabase();
+  const saved = database.updateWalletSettings({ rewardScore: 95, penaltyScoreBelow: 50 });
+  assert.equal(saved.rewardScore, 95);
+  assert.equal(saved.penaltyScoreBelow, 50);
+
+  assert.equal(submitSentence(database, { questionId: "S1-D1-Q1", score: 94 }).change, 0);
+  assert.equal(submitSentence(database, { questionId: "S1-D1-Q2", score: 95 }).change, 200);
+  assert.equal(submitSentence(database, { questionId: "S1-D1-Q3", score: 50 }).change, 0);
+  assert.equal(submitSentence(database, { questionId: "S1-D1-Q4", score: 49 }).change, -100);
+  assert.equal(database.getWalletBalance(), 100);
+});
+
+test("wallet settings reject overlapping score thresholds", () => {
+  const database = makeDatabase();
+  assert.throws(() => database.updateWalletSettings({ rewardScore: 40, penaltyScoreBelow: 60 }), /不能低于/);
+  assert.throws(() => database.updateWalletSettings({ rewardScore: 101 }), /1~100/);
+  assert.throws(() => database.updateWalletSettings({ penaltyScoreBelow: -1 }), /0~100/);
 });
 
 test("AI grading failures neither reward nor penalize, nor consume the first-submission slot", () => {
@@ -197,9 +227,17 @@ test("manual adjustments accept signed amounts and require a note", () => {
 
 test("wallet settings round-trip and reject invalid values", () => {
   const database = makeDatabase();
-  const saved = database.updateWalletSettings({ rewardMinCents: 200, rewardMaxCents: 500, withdrawThresholdCents: 2000 });
+  const saved = database.updateWalletSettings({
+    rewardScore: 98,
+    rewardMinCents: 200,
+    rewardMaxCents: 500,
+    penaltyScoreBelow: 55,
+    withdrawThresholdCents: 2000
+  });
+  assert.equal(saved.rewardScore, 98);
   assert.equal(saved.rewardMinCents, 200);
   assert.equal(saved.rewardMaxCents, 500);
+  assert.equal(saved.penaltyScoreBelow, 55);
   assert.equal(saved.withdrawThresholdCents, 2000);
   assert.equal(saved.penaltyMinCents, 100);
 

@@ -1858,6 +1858,7 @@ button.history-card {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  width: 100%;
 }
 
 .admin-toolbar {
@@ -1939,11 +1940,29 @@ button.history-card {
 }
 
 .admin-settings-form {
-  max-width: 720px;
+  width: 100%;
   padding: 18px;
   border-radius: 20px;
   background: #ffffff;
   box-shadow: 0 8px 22px rgba(47, 79, 122, 0.08);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+  align-items: end;
+  gap: 14px;
+}
+
+.admin-settings-form > label,
+.admin-settings-form .admin-form-row > label {
+  min-width: 0;
+}
+
+.admin-settings-form .admin-form-row {
+  display: contents;
+}
+
+.admin-settings-form > .admin-form-actions {
+  grid-column: 1 / -1;
+  justify-content: flex-end;
 }
 
 .admin-filter {
@@ -2648,7 +2667,7 @@ button.history-card {
   border-radius: 20px;
   background: #ffffff;
   box-shadow: 0 8px 22px rgba(47, 79, 122, 0.08);
-  max-width: 720px;
+  width: 100%;
 }
 
 .admin-wallet-block h3 {
@@ -2687,6 +2706,28 @@ button.history-card {
 .admin-wallet-adjust input:last-of-type {
   flex: 1;
   min-width: 180px;
+}
+
+.admin-form.admin-settings-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  width: 100%;
+  align-items: end;
+  gap: 16px;
+}
+
+.admin-form.admin-settings-form > label,
+.admin-form.admin-settings-form .admin-form-row > label {
+  min-width: 0;
+}
+
+.admin-form.admin-settings-form .admin-form-row {
+  display: contents;
+}
+
+.admin-form.admin-settings-form .admin-form-actions {
+  grid-column: 1 / -1;
+  justify-content: flex-end;
 }
 
 @media (max-width: 760px) {
