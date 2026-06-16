@@ -52,6 +52,40 @@ export type AiModelSettings = AiModelConfig & {
   updatedAt: string | null;
 };
 
+export type TtsProvider = "openai-compatible" | "volcengine";
+
+export type TtsSettings = {
+  provider: TtsProvider;
+  baseUrl?: string;
+  apiKey?: string;
+  model?: string;
+  voice?: string;
+  format: string;
+  timeoutMs: number;
+  appId?: string;
+  accessToken?: string;
+  cluster?: string;
+  voiceType?: string;
+  encoding?: string;
+  configured: boolean;
+  updatedAt: string | null;
+};
+
+export type TtsSettingsInput = {
+  provider: TtsProvider;
+  baseUrl?: string;
+  apiKey?: string;
+  model?: string;
+  voice?: string;
+  format?: string;
+  timeoutMs?: number;
+  appId?: string;
+  accessToken?: string;
+  cluster?: string;
+  voiceType?: string;
+  encoding?: string;
+};
+
 export type WalletSettings = {
   rewardScore: number;
   rewardMinCents: number;
@@ -126,6 +160,19 @@ export type AppConfig = {
   deepseekBaseUrl?: string;
   deepseekApiKey?: string;
   deepseekModel?: string;
+  ttsProvider?: string;
+  ttsBaseUrl?: string;
+  ttsApiKey?: string;
+  ttsModel?: string;
+  ttsVoice?: string;
+  ttsFormat?: string;
+  ttsAppId?: string;
+  ttsAccessToken?: string;
+  ttsCluster?: string;
+  ttsVoiceType?: string;
+  ttsEncoding?: string;
+  ttsTimeoutMs: number;
+  wordAudioGeneratedDir: string;
   aiTimeoutMs: number;
   reviewScoreThreshold: number;
   nodeEnv: string;

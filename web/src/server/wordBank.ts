@@ -80,10 +80,25 @@ export function uniquePartsOfSpeech(word: WordEntry): string[] {
 
 export function resolveWordAudioPath(config: AppConfig, word: WordEntry): string | null {
   if (!word.audioPath) return null;
+  if (word.audioPath.startsWith("generated/")) {
+    const root = resolveGeneratedAudioRoot(config);
+    const absolute = path.resolve(root, word.audioPath.slice("generated/".length));
+    if (!absolute.startsWith(path.resolve(root))) return null;
+    return existsSync(absolute) ? absolute : null;
+  }
   const root = resolveAudioRoot(config);
   const absolute = path.resolve(root, word.audioPath);
   if (!absolute.startsWith(path.resolve(root))) return null;
-  return absolute;
+  return existsSync(absolute) ? absolute : null;
+}
+
+export function generatedWordAudioPath(config: AppConfig, wordId: string): { relativePath: string; absolutePath: string } {
+  const safeName = wordId.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const filename = `${safeName}.mp3`;
+  return {
+    relativePath: `generated/${filename}`,
+    absolutePath: path.resolve(resolveGeneratedAudioRoot(config), filename)
+  };
 }
 
 // Re-derive the relative audio path for a (possibly renamed) word by matching the
@@ -110,6 +125,10 @@ function resolveAudioRoot(config: AppConfig): string {
   ];
 
   return candidates.find((candidate) => existsSync(candidate)) || candidates[0];
+}
+
+function resolveGeneratedAudioRoot(config: AppConfig): string {
+  return config.wordAudioGeneratedDir;
 }
 
 function listMp3Files(dir: string, root: string): string[] {

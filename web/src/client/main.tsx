@@ -2001,6 +2001,251 @@ type AdminQuestion = {
   referenceAnswer: string;
 };
 
+function AdminRangeSetting({
+  title,
+  description,
+  min,
+  max,
+  low,
+  high,
+  lowLabel,
+  highLabel,
+  unit,
+  mode = "range",
+  onLowChange,
+  onHighChange
+}: {
+  title: string;
+  description: string;
+  min: number;
+  max: number;
+  low: number;
+  high: number;
+  lowLabel: string;
+  highLabel: string;
+  unit: string;
+  mode?: "range" | "score";
+  onLowChange: (value: number) => void;
+  onHighChange: (value: number) => void;
+}) {
+  const safeLow = clampNumber(low, min, max);
+  const safeHigh = clampNumber(high, min, max);
+  const lowValue = Math.min(safeLow, safeHigh);
+  const highValue = Math.max(safeLow, safeHigh);
+  const lowPercent = ((lowValue - min) / (max - min)) * 100;
+  const highPercent = ((highValue - min) / (max - min)) * 100;
+  const lowPosition = mode === "score" ? 100 - lowPercent : lowPercent;
+  const highPosition = mode === "score" ? 100 - highPercent : highPercent;
+  const style = {
+    "--range-low": `${lowPosition}%`,
+    "--range-high": `${highPosition}%`
+  } as React.CSSProperties;
+
+  return (
+    <div className={`admin-range-setting ${mode === "score" ? "score-mode" : ""}`} style={style}>
+      <div className="admin-range-head">
+        <div>
+          <strong>{title}</strong>
+          <span>{description}</span>
+        </div>
+        <div className="admin-range-values">
+          <b>
+            {lowLabel} {lowValue}
+            {unit}
+          </b>
+          <b>
+            {highLabel} {highValue}
+            {unit}
+          </b>
+        </div>
+      </div>
+      <div className="admin-range-slider">
+        <input
+          className="low"
+          type="range"
+          min={min}
+          max={max}
+          step={1}
+          value={lowValue}
+          style={mode === "score" ? ({ direction: "rtl" } as React.CSSProperties) : undefined}
+          onChange={(event) => onLowChange(Math.min(Number(event.target.value), highValue))}
+          aria-label={lowLabel}
+        />
+        <input
+          className="high"
+          type="range"
+          min={min}
+          max={max}
+          step={1}
+          value={highValue}
+          style={mode === "score" ? ({ direction: "rtl" } as React.CSSProperties) : undefined}
+          onChange={(event) => onHighChange(Math.max(Number(event.target.value), lowValue))}
+          aria-label={highLabel}
+        />
+      </div>
+      <div className="admin-range-scale">
+        {mode === "score" ? (
+          <>
+            <span>
+              {max}
+              {unit}
+            </span>
+            <span>不奖不扣</span>
+            <span>
+              {min}
+              {unit}
+            </span>
+          </>
+        ) : (
+          <>
+            <span>
+              {min}
+              {unit}
+            </span>
+            <span>
+              {max}
+              {unit}
+            </span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(Math.max(Math.round(value), min), max);
+}
+
+function AdminMoneyRangeSetting({
+  rewardLow,
+  rewardHigh,
+  penaltyLow,
+  penaltyHigh,
+  onRewardLowChange,
+  onRewardHighChange,
+  onPenaltyLowChange,
+  onPenaltyHighChange
+}: {
+  rewardLow: number;
+  rewardHigh: number;
+  penaltyLow: number;
+  penaltyHigh: number;
+  onRewardLowChange: (value: number) => void;
+  onRewardHighChange: (value: number) => void;
+  onPenaltyLowChange: (value: number) => void;
+  onPenaltyHighChange: (value: number) => void;
+}) {
+  const min = 1;
+  const max = 10;
+  const rewardMin = Math.min(clampNumber(rewardLow, min, max), clampNumber(rewardHigh, min, max));
+  const rewardMax = Math.max(clampNumber(rewardLow, min, max), clampNumber(rewardHigh, min, max));
+  const penaltyMin = Math.min(clampNumber(penaltyLow, min, max), clampNumber(penaltyHigh, min, max));
+  const penaltyMax = Math.max(clampNumber(penaltyLow, min, max), clampNumber(penaltyHigh, min, max));
+  const pct = (value: number) => ((value - min) / (max - min)) * 100;
+  const rewardStyle = {
+    "--lane-low": `${pct(rewardMin)}%`,
+    "--lane-high": `${pct(rewardMax)}%`
+  } as React.CSSProperties;
+  const penaltyStyle = {
+    "--lane-low": `${pct(penaltyMin)}%`,
+    "--lane-high": `${pct(penaltyMax)}%`
+  } as React.CSSProperties;
+
+  return (
+    <div className="admin-money-range-setting">
+      <div className="admin-range-head">
+        <div>
+          <strong>奖惩金额尺</strong>
+          <span>共用 1-10 元金额尺：上方设置奖励区间，下方设置低分扣除区间。</span>
+        </div>
+        <div className="admin-range-values money-values">
+          <b>
+            奖励 {rewardMin}-{rewardMax}元
+          </b>
+          <b>
+            扣除 {penaltyMin}-{penaltyMax}元
+          </b>
+        </div>
+      </div>
+      <div className="admin-money-ruler">
+        <div className="money-lane reward" style={rewardStyle}>
+          <div className="money-lane-meta">
+            <span>奖励区间</span>
+            <b>
+              {rewardMin}-{rewardMax}元
+            </b>
+          </div>
+          <div className="money-lane-control">
+            <div className="money-lane-track">
+              <span />
+            </div>
+            <input
+              className="low"
+              type="range"
+              min={min}
+              max={max}
+              step={1}
+              value={rewardMin}
+              onChange={(event) => onRewardLowChange(Math.min(Number(event.target.value), rewardMax))}
+              aria-label="奖励金额下限"
+            />
+            <input
+              className="high"
+              type="range"
+              min={min}
+              max={max}
+              step={1}
+              value={rewardMax}
+              onChange={(event) => onRewardHighChange(Math.max(Number(event.target.value), rewardMin))}
+              aria-label="奖励金额上限"
+            />
+          </div>
+        </div>
+        <div className="admin-money-scale">
+          <span>1元</span>
+          <span>同一金额尺</span>
+          <span>10元</span>
+        </div>
+        <div className="money-lane penalty" style={penaltyStyle}>
+          <div className="money-lane-meta">
+            <span>扣除区间</span>
+            <b>
+              {penaltyMin}-{penaltyMax}元
+            </b>
+          </div>
+          <div className="money-lane-control">
+            <div className="money-lane-track">
+              <span />
+            </div>
+            <input
+              className="low"
+              type="range"
+              min={min}
+              max={max}
+              step={1}
+              value={penaltyMin}
+              onChange={(event) => onPenaltyLowChange(Math.min(Number(event.target.value), penaltyMax))}
+              aria-label="低分扣除金额下限"
+            />
+            <input
+              className="high"
+              type="range"
+              min={min}
+              max={max}
+              step={1}
+              value={penaltyMax}
+              onChange={(event) => onPenaltyHighChange(Math.max(Number(event.target.value), penaltyMin))}
+              aria-label="低分扣除金额上限"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 type AdminWordDefinition = { phonetic: string; partOfSpeech: string; meaning: string };
 type AdminWordExample = { english: string; chinese: string };
 type AdminWord = {
@@ -2019,6 +2264,23 @@ type AdminModelSettingsData = {
   timeoutMs: number;
   configured: boolean;
   apiKeySet: boolean;
+  updatedAt: string | null;
+};
+
+type AdminTtsSettingsData = {
+  provider: "openai-compatible" | "volcengine";
+  baseUrl: string;
+  model: string;
+  voice: string;
+  format: string;
+  timeoutMs: number;
+  appId: string;
+  cluster: string;
+  voiceType: string;
+  encoding: string;
+  configured: boolean;
+  apiKeySet: boolean;
+  accessTokenSet: boolean;
   updatedAt: string | null;
 };
 
@@ -2460,6 +2722,7 @@ function AdminWords() {
   const [error, setError] = useState("");
   const [editing, setEditing] = useState<AdminWord | "new" | null>(null);
   const [deleting, setDeleting] = useState<AdminWord | null>(null);
+  const [generatingAudioId, setGeneratingAudioId] = useState<string | null>(null);
   const wordTags = useWordTags();
 
   async function load() {
@@ -2488,6 +2751,22 @@ function AdminWords() {
   useEffect(() => {
     setOffset(0);
   }, [debouncedSearch, tagFilter, letterFilter]);
+
+  async function generateAudio(item: AdminWord) {
+    setGeneratingAudioId(item.id);
+    setError("");
+    try {
+      const data = await api(`/api/admin/words/${encodeURIComponent(item.id)}/audio/generate`, { method: "POST" });
+      await load();
+      if (data?.audioGeneration?.status === "skipped" || data?.audioGeneration?.status === "failed") {
+        setError(data.audioGeneration.message || "发音生成失败");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "发音生成失败");
+    } finally {
+      setGeneratingAudioId(null);
+    }
+  }
 
   return (
     <section className="admin-panel">
@@ -2569,6 +2848,15 @@ function AdminWords() {
               ) : null}
             </div>
             <div className="admin-row-actions">
+              <button
+                className="soft-button small admin-audio-generate"
+                title={item.hasAudio ? "重新生成发音" : "生成发音"}
+                onClick={() => generateAudio(item)}
+                disabled={generatingAudioId === item.id}
+              >
+                {generatingAudioId === item.id ? <Loader2 className="spin" size={16} /> : <Volume2 size={16} />}
+                {item.hasAudio ? "重生成" : "生成发音"}
+              </button>
               <button className="icon-button" title="编辑" onClick={() => setEditing(item)}>
                 <Pencil size={18} />
               </button>
@@ -2611,29 +2899,63 @@ function AdminWords() {
 
 function AdminModelSettings() {
   const [settings, setSettings] = useState<AdminModelSettingsData | null>(null);
+  const [ttsSettings, setTtsSettings] = useState<AdminTtsSettingsData | null>(null);
   const [baseUrl, setBaseUrl] = useState("");
   const [model, setModel] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [timeoutMs, setTimeoutMs] = useState("30000");
+  const [ttsProvider, setTtsProvider] = useState<AdminTtsSettingsData["provider"]>("volcengine");
+  const [ttsBaseUrl, setTtsBaseUrl] = useState("");
+  const [ttsApiKey, setTtsApiKey] = useState("");
+  const [ttsModel, setTtsModel] = useState("");
+  const [ttsVoice, setTtsVoice] = useState("");
+  const [ttsFormat, setTtsFormat] = useState("mp3");
+  const [ttsAppId, setTtsAppId] = useState("");
+  const [ttsAccessToken, setTtsAccessToken] = useState("");
+  const [ttsCluster, setTtsCluster] = useState("");
+  const [ttsVoiceType, setTtsVoiceType] = useState("");
+  const [ttsEncoding, setTtsEncoding] = useState("mp3");
+  const [ttsTimeoutMs, setTtsTimeoutMs] = useState("30000");
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [testing, setTesting] = useState(false);
+  const [submittingGrade, setSubmittingGrade] = useState(false);
+  const [testingGrade, setTestingGrade] = useState(false);
+  const [submittingTts, setSubmittingTts] = useState(false);
+  const [testingTts, setTestingTts] = useState(false);
   const [error, setError] = useState("");
-  const [saved, setSaved] = useState(false);
-  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [gradeSaved, setGradeSaved] = useState(false);
+  const [ttsSaved, setTtsSaved] = useState(false);
+  const [gradeTestResult, setGradeTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [ttsTestResult, setTtsTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   async function load() {
     setLoading(true);
     setError("");
-    setSaved(false);
-    setTestResult(null);
+    setGradeSaved(false);
+    setTtsSaved(false);
+    setGradeTestResult(null);
+    setTtsTestResult(null);
     try {
-      const data = (await api("/api/admin/model-settings")) as AdminModelSettingsData;
-      setSettings(data);
-      setBaseUrl(data.baseUrl);
-      setModel(data.model);
-      setTimeoutMs(String(data.timeoutMs || 30000));
+      const [gradeData, ttsData] = (await Promise.all([
+        api("/api/admin/model-settings"),
+        api("/api/admin/tts-settings")
+      ])) as [AdminModelSettingsData, AdminTtsSettingsData];
+      setSettings(gradeData);
+      setBaseUrl(gradeData.baseUrl);
+      setModel(gradeData.model);
+      setTimeoutMs(String(gradeData.timeoutMs || 30000));
       setApiKey("");
+      setTtsSettings(ttsData);
+      setTtsProvider(ttsData.provider);
+      setTtsBaseUrl(ttsData.baseUrl);
+      setTtsModel(ttsData.model);
+      setTtsVoice(ttsData.voice);
+      setTtsFormat(ttsData.format || "mp3");
+      setTtsTimeoutMs(String(ttsData.timeoutMs || 30000));
+      setTtsAppId(ttsData.appId);
+      setTtsAccessToken("");
+      setTtsCluster(ttsData.cluster);
+      setTtsVoiceType(ttsData.voiceType);
+      setTtsEncoding(ttsData.encoding || ttsData.format || "mp3");
     } catch (err) {
       setError(err instanceof Error ? err.message : "模型配置加载失败");
     } finally {
@@ -2642,19 +2964,24 @@ function AdminModelSettings() {
   }
 
   function markChanged() {
-    setSaved(false);
-    setTestResult(null);
+    setGradeSaved(false);
+    setGradeTestResult(null);
+  }
+
+  function markTtsChanged() {
+    setTtsSaved(false);
+    setTtsTestResult(null);
   }
 
   useEffect(() => {
     load();
   }, []);
 
-  async function testConnection() {
-    setTesting(true);
+  async function testGradeConnection() {
+    setTestingGrade(true);
     setError("");
-    setSaved(false);
-    setTestResult(null);
+    setGradeSaved(false);
+    setGradeTestResult(null);
     try {
       const data = await api("/api/admin/model-settings/test", {
         method: "POST",
@@ -2666,19 +2993,19 @@ function AdminModelSettings() {
           timeoutMs: Number(timeoutMs)
         })
       });
-      setTestResult({ ok: true, message: data.message || "模型连接测试通过。" });
+      setGradeTestResult({ ok: true, message: data.message || "模型连接测试通过。" });
     } catch (err) {
-      setTestResult({ ok: false, message: err instanceof Error ? err.message : "模型连接测试失败" });
+      setGradeTestResult({ ok: false, message: err instanceof Error ? err.message : "模型连接测试失败" });
     } finally {
-      setTesting(false);
+      setTestingGrade(false);
     }
   }
 
-  async function submit(event: React.FormEvent) {
+  async function submitGrade(event: React.FormEvent) {
     event.preventDefault();
-    setSubmitting(true);
+    setSubmittingGrade(true);
     setError("");
-    setSaved(false);
+    setGradeSaved(false);
     try {
       const data = (await api("/api/admin/model-settings", {
         method: "PATCH",
@@ -2695,11 +3022,78 @@ function AdminModelSettings() {
       setModel(data.model);
       setTimeoutMs(String(data.timeoutMs));
       setApiKey("");
-      setSaved(true);
+      setGradeSaved(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "保存失败");
     } finally {
-      setSubmitting(false);
+      setSubmittingGrade(false);
+    }
+  }
+
+  function ttsPayload() {
+    return {
+      provider: ttsProvider,
+      baseUrl: ttsBaseUrl,
+      apiKey: ttsApiKey,
+      model: ttsModel,
+      voice: ttsVoice,
+      format: ttsFormat,
+      timeoutMs: Number(ttsTimeoutMs),
+      appId: ttsAppId,
+      accessToken: ttsAccessToken,
+      cluster: ttsCluster,
+      voiceType: ttsVoiceType,
+      encoding: ttsEncoding
+    };
+  }
+
+  async function testTtsConnection() {
+    setTestingTts(true);
+    setError("");
+    setTtsSaved(false);
+    setTtsTestResult(null);
+    try {
+      const data = await api("/api/admin/tts-settings/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(ttsPayload())
+      });
+      setTtsTestResult({ ok: true, message: data.message || "TTS 连接测试通过。" });
+    } catch (err) {
+      setTtsTestResult({ ok: false, message: err instanceof Error ? err.message : "TTS 连接测试失败" });
+    } finally {
+      setTestingTts(false);
+    }
+  }
+
+  async function submitTts(event: React.FormEvent) {
+    event.preventDefault();
+    setSubmittingTts(true);
+    setError("");
+    setTtsSaved(false);
+    try {
+      const data = (await api("/api/admin/tts-settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(ttsPayload())
+      })) as AdminTtsSettingsData;
+      setTtsSettings(data);
+      setTtsProvider(data.provider);
+      setTtsBaseUrl(data.baseUrl);
+      setTtsModel(data.model);
+      setTtsVoice(data.voice);
+      setTtsFormat(data.format || "mp3");
+      setTtsTimeoutMs(String(data.timeoutMs));
+      setTtsAppId(data.appId);
+      setTtsAccessToken("");
+      setTtsCluster(data.cluster);
+      setTtsVoiceType(data.voiceType);
+      setTtsEncoding(data.encoding || data.format || "mp3");
+      setTtsSaved(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "保存失败");
+    } finally {
+      setSubmittingTts(false);
     }
   }
 
@@ -2707,88 +3101,307 @@ function AdminModelSettings() {
     <section className="admin-panel">
       <div className="admin-settings-head">
         <div>
-          <span className={`admin-status ${settings?.configured ? "ready" : "missing"}`}>
-            {settings?.configured ? "已配置" : "未配置"}
+          <span className={`admin-status ${settings?.configured && ttsSettings?.configured ? "ready" : "missing"}`}>
+            {settings?.configured && ttsSettings?.configured ? "已配置" : "待完善"}
           </span>
           <h2>模型参数</h2>
         </div>
-        {settings?.updatedAt ? <small>更新于 {formatDate(settings.updatedAt)}</small> : null}
+        {settings?.updatedAt || ttsSettings?.updatedAt ? (
+          <small>最近更新 {formatDate(ttsSettings?.updatedAt || settings?.updatedAt || "")}</small>
+        ) : null}
       </div>
 
       {loading ? <LoadingScreen compact /> : null}
       {error ? <div className="notice danger">{error}</div> : null}
-      {saved ? <div className="notice">模型配置已保存。</div> : null}
 
       {!loading ? (
-        <form className="admin-form admin-settings-form" onSubmit={submit}>
-          <label>
-            Base URL
-            <input
-              value={baseUrl}
-              onChange={(event) => {
-                setBaseUrl(event.target.value);
-                markChanged();
-              }}
-              placeholder="https://api.deepseek.com"
-              required
-            />
-          </label>
-          <label>
-            模型名称
-            <input
-              value={model}
-              onChange={(event) => {
-                setModel(event.target.value);
-                markChanged();
-              }}
-              placeholder="deepseek-v4-flash"
-              required
-            />
-          </label>
-          <label>
-            API Key
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(event) => {
-                setApiKey(event.target.value);
-                markChanged();
-              }}
-              placeholder={settings?.apiKeySet ? "已保存，留空不变" : "请输入 API Key"}
-              required={!settings?.apiKeySet}
-            />
-          </label>
-          <label>
-            超时（毫秒）
-            <input
-              type="number"
-              min={1000}
-              max={120000}
-              step={1000}
-              value={timeoutMs}
-              onChange={(event) => {
-                setTimeoutMs(event.target.value);
-                markChanged();
-              }}
-              required
-            />
-          </label>
-          {testResult ? <div className={`notice ${testResult.ok ? "" : "danger"}`}>{testResult.message}</div> : null}
-          <div className="admin-form-actions">
-            <button type="button" className="link-button" onClick={load} disabled={submitting}>
-              <RotateCcw size={16} />
-              重新加载
-            </button>
-            <button type="button" className="soft-button small" onClick={testConnection} disabled={submitting || testing}>
-              {testing ? <Loader2 className="spin" size={18} /> : <Sparkles size={18} />}
-              测试连接
-            </button>
-            <button className="primary-button small" disabled={submitting}>
-              {submitting ? <Loader2 className="spin" size={18} /> : <Check size={18} />}
-              保存模型
-            </button>
-          </div>
-        </form>
+        <div className="admin-model-grid">
+          <form className="admin-form admin-settings-form admin-model-form" onSubmit={submitGrade}>
+            <div className="admin-form-heading">
+              <div>
+                <span className={`admin-status ${settings?.configured ? "ready" : "missing"}`}>
+                  {settings?.configured ? "已配置" : "未配置"}
+                </span>
+                <h3>批改模型</h3>
+              </div>
+              {settings?.updatedAt ? <small>更新于 {formatDate(settings.updatedAt)}</small> : null}
+            </div>
+            <label>
+              Base URL
+              <input
+                value={baseUrl}
+                onChange={(event) => {
+                  setBaseUrl(event.target.value);
+                  markChanged();
+                }}
+                placeholder="https://api.deepseek.com"
+                required
+              />
+            </label>
+            <label>
+              模型名称
+              <input
+                value={model}
+                onChange={(event) => {
+                  setModel(event.target.value);
+                  markChanged();
+                }}
+                placeholder="deepseek-v4-flash"
+                required
+              />
+            </label>
+            <label>
+              API Key
+              <input
+                type="password"
+                value={apiKey}
+                onChange={(event) => {
+                  setApiKey(event.target.value);
+                  markChanged();
+                }}
+                placeholder={settings?.apiKeySet ? "已保存，留空不变" : "请输入 API Key"}
+                required={!settings?.apiKeySet}
+              />
+            </label>
+            <label>
+              超时（毫秒）
+              <input
+                type="number"
+                min={1000}
+                max={120000}
+                step={1000}
+                value={timeoutMs}
+                onChange={(event) => {
+                  setTimeoutMs(event.target.value);
+                  markChanged();
+                }}
+                required
+              />
+            </label>
+            {gradeSaved ? <div className="notice">批改模型配置已保存。</div> : null}
+            {gradeTestResult ? (
+              <div className={`notice ${gradeTestResult.ok ? "" : "danger"}`}>{gradeTestResult.message}</div>
+            ) : null}
+            <div className="admin-form-actions">
+              <button type="button" className="link-button" onClick={load} disabled={submittingGrade || submittingTts}>
+                <RotateCcw size={16} />
+                重新加载
+              </button>
+              <button
+                type="button"
+                className="soft-button small"
+                onClick={testGradeConnection}
+                disabled={submittingGrade || testingGrade}
+              >
+                {testingGrade ? <Loader2 className="spin" size={18} /> : <Sparkles size={18} />}
+                测试连接
+              </button>
+              <button className="primary-button small" disabled={submittingGrade}>
+                {submittingGrade ? <Loader2 className="spin" size={18} /> : <Check size={18} />}
+                保存批改模型
+              </button>
+            </div>
+          </form>
+
+          <form className="admin-form admin-settings-form admin-model-form" onSubmit={submitTts}>
+            <div className="admin-form-heading">
+              <div>
+                <span className={`admin-status ${ttsSettings?.configured ? "ready" : "missing"}`}>
+                  {ttsSettings?.configured ? "已配置" : "未配置"}
+                </span>
+                <h3>TTS 发音模型</h3>
+              </div>
+              {ttsSettings?.updatedAt ? <small>更新于 {formatDate(ttsSettings.updatedAt)}</small> : null}
+            </div>
+            <label>
+              Provider
+              <select
+                value={ttsProvider}
+                onChange={(event) => {
+                  const provider = event.target.value as AdminTtsSettingsData["provider"];
+                  setTtsProvider(provider);
+                  setTtsBaseUrl(
+                    provider === "volcengine"
+                      ? ttsBaseUrl || "https://openspeech.bytedance.com/api/v3/tts/unidirectional"
+                      : ttsBaseUrl || "https://api.openai.com"
+                  );
+                  markTtsChanged();
+                }}
+              >
+                <option value="volcengine">火山引擎</option>
+                <option value="openai-compatible">OpenAI-compatible</option>
+              </select>
+            </label>
+            <label>
+              Base URL
+              <input
+                value={ttsBaseUrl}
+                onChange={(event) => {
+                  setTtsBaseUrl(event.target.value);
+                  markTtsChanged();
+                }}
+                placeholder={
+                  ttsProvider === "volcengine"
+                    ? "https://openspeech.bytedance.com/api/v3/tts/unidirectional"
+                    : "https://api.openai.com"
+                }
+                required
+              />
+            </label>
+            {ttsProvider === "volcengine" ? (
+              <>
+                <label>
+                  App ID（旧版可选）
+                  <input
+                    value={ttsAppId}
+                    onChange={(event) => {
+                      setTtsAppId(event.target.value);
+                      markTtsChanged();
+                    }}
+                    placeholder="新版 API Key 模式可留空"
+                  />
+                </label>
+                <label>
+                  API Key
+                  <input
+                    type="password"
+                    value={ttsAccessToken}
+                    onChange={(event) => {
+                      setTtsAccessToken(event.target.value);
+                      markTtsChanged();
+                    }}
+                    placeholder={ttsSettings?.accessTokenSet ? "已保存，留空不变" : "请输入 API Key"}
+                    required={!ttsSettings?.accessTokenSet}
+                  />
+                </label>
+                <label>
+                  Resource ID
+                  <input
+                    value={ttsCluster}
+                    onChange={(event) => {
+                      setTtsCluster(event.target.value);
+                      markTtsChanged();
+                    }}
+                    placeholder="seed-tts-2.0"
+                    required
+                  />
+                </label>
+                <label>
+                  Speaker
+                  <input
+                    value={ttsVoiceType}
+                    onChange={(event) => {
+                      setTtsVoiceType(event.target.value);
+                      markTtsChanged();
+                    }}
+                    placeholder="zh_female_cancan_mars_bigtts"
+                    required
+                  />
+                </label>
+                <label>
+                  Encoding
+                  <input
+                    value={ttsEncoding}
+                    onChange={(event) => {
+                      setTtsEncoding(event.target.value);
+                      markTtsChanged();
+                    }}
+                    placeholder="mp3"
+                    required
+                  />
+                </label>
+              </>
+            ) : (
+              <>
+                <label>
+                  API Key
+                  <input
+                    type="password"
+                    value={ttsApiKey}
+                    onChange={(event) => {
+                      setTtsApiKey(event.target.value);
+                      markTtsChanged();
+                    }}
+                    placeholder={ttsSettings?.apiKeySet ? "已保存，留空不变" : "请输入 API Key"}
+                    required={!ttsSettings?.apiKeySet}
+                  />
+                </label>
+                <label>
+                  Model
+                  <input
+                    value={ttsModel}
+                    onChange={(event) => {
+                      setTtsModel(event.target.value);
+                      markTtsChanged();
+                    }}
+                    placeholder="gpt-4o-mini-tts"
+                    required
+                  />
+                </label>
+                <label>
+                  Voice
+                  <input
+                    value={ttsVoice}
+                    onChange={(event) => {
+                      setTtsVoice(event.target.value);
+                      markTtsChanged();
+                    }}
+                    placeholder="alloy"
+                    required
+                  />
+                </label>
+                <label>
+                  Format
+                  <input
+                    value={ttsFormat}
+                    onChange={(event) => {
+                      setTtsFormat(event.target.value);
+                      markTtsChanged();
+                    }}
+                    placeholder="mp3"
+                    required
+                  />
+                </label>
+              </>
+            )}
+            <label>
+              超时（毫秒）
+              <input
+                type="number"
+                min={1000}
+                max={120000}
+                step={1000}
+                value={ttsTimeoutMs}
+                onChange={(event) => {
+                  setTtsTimeoutMs(event.target.value);
+                  markTtsChanged();
+                }}
+                required
+              />
+            </label>
+            {ttsSaved ? <div className="notice">TTS 发音模型配置已保存。</div> : null}
+            {ttsTestResult ? <div className={`notice ${ttsTestResult.ok ? "" : "danger"}`}>{ttsTestResult.message}</div> : null}
+            <div className="admin-form-actions">
+              <button type="button" className="link-button" onClick={load} disabled={submittingTts || submittingGrade}>
+                <RotateCcw size={16} />
+                重新加载
+              </button>
+              <button
+                type="button"
+                className="soft-button small"
+                onClick={testTtsConnection}
+                disabled={submittingTts || testingTts}
+              >
+                {testingTts ? <Loader2 className="spin" size={18} /> : <Volume2 size={18} />}
+                测试发音
+              </button>
+              <button className="primary-button small" disabled={submittingTts}>
+                {submittingTts ? <Loader2 className="spin" size={18} /> : <Check size={18} />}
+                保存 TTS
+              </button>
+            </div>
+          </form>
+        </div>
       ) : null}
     </section>
   );
@@ -2952,52 +3565,30 @@ function AdminWallet() {
       {!loading ? (
         <>
           <form className="admin-form admin-settings-form" onSubmit={saveSettings}>
-            <div className="admin-form-row">
-              <label>
-                奖励触发分数
-                <input
-                  type="number"
-                  min={1}
-                  max={100}
-                  step={1}
-                  value={rewardScore}
-                  onChange={(event) => setRewardScore(event.target.value)}
-                  required
-                />
-              </label>
-              <label>
-                低于此分数扣除
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={penaltyScoreBelow}
-                  onChange={(event) => setPenaltyScoreBelow(event.target.value)}
-                  required
-                />
-              </label>
-            </div>
-            <div className="admin-form-row">
-              <label>
-                奖励金额下限（元）
-                <input type="number" min={1} step={1} value={rewardMin} onChange={(event) => setRewardMin(event.target.value)} required />
-              </label>
-              <label>
-                奖励金额上限（元）
-                <input type="number" min={1} step={1} value={rewardMax} onChange={(event) => setRewardMax(event.target.value)} required />
-              </label>
-            </div>
-            <div className="admin-form-row">
-              <label>
-                低分扣除下限（元）
-                <input type="number" min={1} step={1} value={penaltyMin} onChange={(event) => setPenaltyMin(event.target.value)} required />
-              </label>
-              <label>
-                低分扣除上限（元）
-                <input type="number" min={1} step={1} value={penaltyMax} onChange={(event) => setPenaltyMax(event.target.value)} required />
-              </label>
-            </div>
+            <AdminRangeSetting
+              title="奖惩分数线"
+              description="左侧是高分奖励区，右侧是低分扣钱区，中间不奖不扣。"
+              min={0}
+              max={100}
+              low={Number(penaltyScoreBelow)}
+              high={Number(rewardScore)}
+              lowLabel="扣钱低于"
+              highLabel="奖励达到"
+              unit="分"
+              mode="score"
+              onLowChange={(value) => setPenaltyScoreBelow(String(value))}
+              onHighChange={(value) => setRewardScore(String(value))}
+            />
+            <AdminMoneyRangeSetting
+              rewardLow={Number(rewardMin)}
+              rewardHigh={Number(rewardMax)}
+              penaltyLow={Number(penaltyMin)}
+              penaltyHigh={Number(penaltyMax)}
+              onRewardLowChange={(value) => setRewardMin(String(value))}
+              onRewardHighChange={(value) => setRewardMax(String(value))}
+              onPenaltyLowChange={(value) => setPenaltyMin(String(value))}
+              onPenaltyHighChange={(value) => setPenaltyMax(String(value))}
+            />
             <label>
               提现门槛（元）
               <input type="number" min={1} step={1} value={threshold} onChange={(event) => setThreshold(event.target.value)} required />
@@ -3389,7 +3980,7 @@ function apiUrl(path: string): string {
 }
 
 async function playWordAudioById(wordId: string): Promise<void> {
-  const audio = new Audio(apiUrl(`/api/word-audio/${encodeURIComponent(wordId)}`));
+  const audio = new Audio(apiUrl(`/api/word-audio/${encodeURIComponent(wordId)}?t=${Date.now()}`));
   await audio.play();
 }
 

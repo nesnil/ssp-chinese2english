@@ -1,9 +1,11 @@
 import crypto from "node:crypto";
+import { accessSync, constants, mkdirSync } from "node:fs";
 import express, { type NextFunction, type Request, type Response } from "express";
 import { loadConfig, publicDir } from "./config.js";
 import { registerAdminRoutes, walletTxToJson } from "./adminRoutes.js";
 import { AppDatabase, computeDayProgress } from "./db.js";
 import { AiConfigError, gradeAnswer, gradeExampleRecall, gradeWordRecall } from "./grader.js";
+import { generateWordAudio } from "./tts.js";
 import { getBank, getDayQuestions, getQuestion, initQuestionBank, loadSeedQuestionBank, toPublicQuestion } from "./questionBank.js";
 import type { WordEntry } from "./types.js";
 import {
@@ -12,6 +14,7 @@ import {
   getWordsByTag,
   initWordBank,
   loadSeedWordBank,
+  reloadWordBank,
   resolveWordAudioPath,
   toPublicWordDetails,
   toPublicWordPrompt
@@ -36,10 +39,14 @@ const authCookieName = "c2e_session";
 
 app.get("/api/health", (_req, res) => {
   const aiSettings = database.getAiModelSettings(config);
+  const ttsSettings = database.getTtsSettings(config);
   res.json({
     ok: true,
     database: true,
     aiConfigured: aiSettings.configured,
+    ttsConfigured: ttsSettings.configured,
+    ttsProvider: ttsSettings.provider,
+    generatedAudioWritable: generatedAudioDirWritable(),
     authConfigured: Boolean(config.appPassword && config.sessionSecret),
     questionBank: {
       totalDays: getBank().totalDays,
@@ -304,17 +311,35 @@ app.get("/api/word-review", requireAuth, (_req, res) => {
   });
 });
 
-app.get("/api/word-audio/:wordId", requireAuth, (req, res) => {
-  const word = getWord(String(req.params.wordId));
+app.get("/api/word-audio/:wordId", requireAuth, async (req, res) => {
+  let word = getWord(String(req.params.wordId));
   if (!word) {
     res.status(404).json({ error: "没有找到这个单词。" });
     return;
   }
-  const audioPath = resolveWordAudioPath(config, word);
+  let audioPath = resolveWordAudioPath(config, word);
   if (!audioPath) {
-    res.status(404).json({ error: "这个单词暂时没有发音文件。" });
+    const settings = database.getTtsSettings(config);
+    if (settings.configured) {
+      try {
+        const generated = await generateWordAudio(config, settings, word);
+        database.updateWordAudioPath(word.id, generated.relativePath);
+        reloadWordBank();
+        word = getWord(word.id) || word;
+        audioPath = generated.absolutePath;
+      } catch (error) {
+        res.status(502).json({
+          error: error instanceof Error ? `发音自动生成失败：${error.message}` : "发音自动生成失败。"
+        });
+        return;
+      }
+    }
+  }
+  if (!audioPath) {
+    res.status(404).json({ error: "这个单词暂时没有发音文件，请在后台配置 TTS 后生成。" });
     return;
   }
+  res.set("Cache-Control", "no-store");
   res.sendFile(audioPath);
 });
 
@@ -669,6 +694,16 @@ function parseIssues(raw: string): string[] {
 
 function getWordScopeDisplayTotal(fallback: number): number {
   return getWordBank().zhongkao?.matchedSourceRows || fallback || getWordBank().totalWords;
+}
+
+function generatedAudioDirWritable(): boolean {
+  try {
+    mkdirSync(config.wordAudioGeneratedDir, { recursive: true });
+    accessSync(config.wordAudioGeneratedDir, constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function buildWordLevelGroups() {

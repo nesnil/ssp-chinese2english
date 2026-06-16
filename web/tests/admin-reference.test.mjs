@@ -14,7 +14,9 @@ function makeDatabase() {
     databasePath: path.join(tempRoot, `${randomUUID()}.sqlite`),
     aiTimeoutMs: 30000,
     reviewScoreThreshold: 80,
-    nodeEnv: "test"
+    nodeEnv: "test",
+    ttsTimeoutMs: 30000,
+    wordAudioGeneratedDir: path.join(tempRoot, "word-audio", "generated")
   });
 }
 
@@ -81,6 +83,43 @@ test("word update keeps id fixed even when name changes", () => {
   assert.equal(row.id, "w_apple"); // id is the stable join key — must not change with the name
 });
 
+test("word list ignores insertion order and sorts alphabetically", () => {
+  const db = makeDatabase();
+  db.seedWordsIfEmpty(seedWords);
+
+  db.insertWord({
+    id: "w_zebra",
+    source_id: "zebra",
+    name: "zebra",
+    sort_index: db.nextWordSortIndex(),
+    definitions_json: JSON.stringify([{ phonetic: "", partOfSpeech: "n.", meaning: "斑马" }]),
+    examples_json: JSON.stringify([{ english: "A zebra runs.", chinese: "一匹斑马在跑。" }]),
+    similar_json: "[]",
+    tags_json: JSON.stringify(["all"]),
+    audio_path: null
+  });
+  db.insertWord({
+    id: "w_able",
+    source_id: "able",
+    name: "able",
+    sort_index: db.nextWordSortIndex(),
+    definitions_json: JSON.stringify([{ phonetic: "", partOfSpeech: "adj.", meaning: "能够" }]),
+    examples_json: JSON.stringify([{ english: "I am able to swim.", chinese: "我会游泳。" }]),
+    similar_json: "[]",
+    tags_json: JSON.stringify(["all"]),
+    audio_path: null
+  });
+
+  assert.deepEqual(
+    db.allWordRows().map((row) => row.name),
+    ["able", "apple", "zebra"]
+  );
+  assert.deepEqual(
+    db.queryWordPage("", [], 10, 0).map((row) => row.name),
+    ["able", "apple", "zebra"]
+  );
+});
+
 test("delete warnings count referencing submissions, but submissions are preserved", () => {
   const db = makeDatabase();
   db.seedQuestionsIfEmpty(seedQuestions);
@@ -140,7 +179,9 @@ test("AI model settings fall back to startup config and can be updated", () => {
     deepseekModel: "deepseek-v4-flash",
     aiTimeoutMs: 30000,
     reviewScoreThreshold: 80,
-    nodeEnv: "test"
+    nodeEnv: "test",
+    ttsTimeoutMs: 30000,
+    wordAudioGeneratedDir: path.join(tempRoot, "word-audio", "generated")
   };
 
   const initial = db.getAiModelSettings(startup);
@@ -166,4 +207,43 @@ test("AI model settings fall back to startup config and can be updated", () => {
   assert.equal(loaded.apiKey, "saved-key");
   assert.equal(loaded.model, "custom-model");
   assert.equal(loaded.timeoutMs, 45000);
+});
+
+test("TTS settings support Volcengine and keep saved token when input is blank", () => {
+  const db = makeDatabase();
+  const startup = {
+    port: 3000,
+    databasePath: "ignored.sqlite",
+    aiTimeoutMs: 30000,
+    reviewScoreThreshold: 80,
+    nodeEnv: "test",
+    ttsProvider: "volcengine",
+    ttsTimeoutMs: 30000,
+    wordAudioGeneratedDir: path.join(tempRoot, "word-audio", "generated")
+  };
+
+  const saved = db.updateTtsSettings({
+    provider: "volcengine",
+    baseUrl: "https://openspeech.bytedance.com/api/v3/tts/unidirectional",
+    accessToken: "saved-api-key",
+    cluster: "seed-tts-2.0",
+    voiceType: "zh_female_cancan_mars_bigtts",
+    encoding: "mp3",
+    timeoutMs: 45000
+  });
+  assert.equal(saved.configured, true);
+  assert.equal(saved.accessToken, "saved-api-key");
+
+  const loaded = db.updateTtsSettings({
+    provider: "volcengine",
+    baseUrl: "https://openspeech.bytedance.com/api/v3/tts/unidirectional",
+    accessToken: "",
+    cluster: "seed-tts-2.0",
+    voiceType: "zh_female_shuangkuaisisi_moon_bigtts",
+    encoding: "mp3",
+    timeoutMs: 30000
+  });
+  assert.equal(loaded.accessToken, "saved-api-key");
+  assert.equal(loaded.voiceType, "zh_female_shuangkuaisisi_moon_bigtts");
+  assert.equal(db.getTtsSettings(startup).configured, true);
 });

@@ -1,9 +1,10 @@
 import type { Express, Request, RequestHandler } from "express";
-import type { AiModelConfig, AppConfig, WordDefinition, WordExample } from "./types.js";
+import type { AiModelConfig, AppConfig, TtsSettings, TtsSettingsInput, WordDefinition, WordExample } from "./types.js";
 import { AppDatabase, type WalletTransactionRow } from "./db.js";
 import { AiConfigError, testAiModelConnection } from "./grader.js";
 import { getBank, reloadQuestionBank } from "./questionBank.js";
 import { getWordBank, reloadWordBank, resolveAudioPathByName } from "./wordBank.js";
+import { generateWordAudio, testTtsConnection, TtsConfigError } from "./tts.js";
 
 const QUESTIONS_PAGE_MAX = 200;
 const WORDS_PAGE_MAX = 200;
@@ -61,6 +62,34 @@ export function registerAdminRoutes(
     } catch (error) {
       const message = error instanceof Error ? error.message : "模型连接测试失败。";
       res.status(error instanceof AiConfigError ? 400 : 502).json({ error: message });
+    }
+  });
+
+  // --- TTS settings (单词发音模型) ---
+
+  app.get("/api/admin/tts-settings", requireAdmin, (_req, res) => {
+    res.json(adminTtsSettings(database.getTtsSettings(config)));
+  });
+
+  app.patch("/api/admin/tts-settings", requireAdmin, (req, res) => {
+    const current = database.getTtsSettings(config);
+    const input = readTtsSettingsInput(req.body, current);
+    try {
+      res.json(adminTtsSettings(database.updateTtsSettings(input)));
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : "TTS 配置保存失败。" });
+    }
+  });
+
+  app.post("/api/admin/tts-settings/test", requireAdmin, async (req, res) => {
+    const current = database.getTtsSettings(config);
+    const settings = ttsSettingsFromInput(readTtsSettingsInput(req.body, current), current);
+    try {
+      await testTtsConnection(settings);
+      res.json({ ok: true, message: "TTS 连接测试通过。" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "TTS 连接测试失败。";
+      res.status(error instanceof TtsConfigError ? 400 : 502).json({ error: message });
     }
   });
 
@@ -283,7 +312,7 @@ export function registerAdminRoutes(
     res.json(adminWord(row));
   });
 
-  app.post("/api/admin/words", requireAdmin, (req, res) => {
+  app.post("/api/admin/words", requireAdmin, async (req, res) => {
     const name = String(req.body?.name || "").trim();
     const definitions = normalizeDefinitions(req.body?.definitions);
     const examples = normalizeExamples(req.body?.examples);
@@ -319,11 +348,12 @@ export function registerAdminRoutes(
       tags_json: JSON.stringify(ensureAllTag(tags)),
       audio_path: resolveAudioPathByName(config, name)
     });
+    const audioGeneration = await ensureGeneratedWordAudio(id);
     reloadWordBank();
-    res.json(adminWord(database.getWordRow(id)!));
+    res.json({ ...adminWord(database.getWordRow(id)!), audioGeneration });
   });
 
-  app.patch("/api/admin/words/:id", requireAdmin, (req, res) => {
+  app.patch("/api/admin/words/:id", requireAdmin, async (req, res) => {
     const id = String(req.params.id);
     const existing = database.getWordRow(id);
     if (!existing) {
@@ -360,8 +390,25 @@ export function registerAdminRoutes(
       tags_json: JSON.stringify(ensureAllTag(tags)),
       audio_path: audioPath
     });
+    const audioGeneration = await ensureGeneratedWordAudio(id);
     reloadWordBank();
-    res.json(adminWord(database.getWordRow(id)!));
+    res.json({ ...adminWord(database.getWordRow(id)!), audioGeneration });
+  });
+
+  app.post("/api/admin/words/:id/audio/generate", requireAdmin, async (req, res) => {
+    const id = String(req.params.id);
+    const row = database.getWordRow(id);
+    if (!row) {
+      res.status(404).json({ error: "没有找到这个单词。" });
+      return;
+    }
+    const result = await ensureGeneratedWordAudio(id, true);
+    if (result.status === "failed") {
+      res.status(502).json({ error: result.message || "发音生成失败。", audioGeneration: result });
+      return;
+    }
+    reloadWordBank();
+    res.json({ ...adminWord(database.getWordRow(id)!), audioGeneration: result });
   });
 
   app.delete("/api/admin/words/:id", requireAdmin, (req, res) => {
@@ -375,6 +422,24 @@ export function registerAdminRoutes(
     reloadWordBank();
     res.json({ ok: true, deletedId: id, submissionCount });
   });
+
+  async function ensureGeneratedWordAudio(
+    id: string,
+    force = false
+  ): Promise<{ status: "existing" | "generated" | "skipped" | "failed"; message?: string }> {
+    const row = database.getWordRow(id);
+    if (!row) return { status: "failed", message: "没有找到这个单词。" };
+    if (row.audio_path && !force) return { status: "existing" };
+    const settings = database.getTtsSettings(config);
+    if (!settings.configured) return { status: "skipped", message: "TTS 未配置。" };
+    try {
+      const generated = await generateWordAudio(config, settings, { id: row.id, name: row.name });
+      database.updateWordAudioPath(id, generated.relativePath);
+      return { status: "generated" };
+    } catch (error) {
+      return { status: "failed", message: error instanceof Error ? error.message : "发音生成失败。" };
+    }
+  }
 }
 
 // --- serializers ---
@@ -414,6 +479,25 @@ function adminModelSettings(settings: ReturnType<AppDatabase["getAiModelSettings
   };
 }
 
+function adminTtsSettings(settings: TtsSettings) {
+  return {
+    provider: settings.provider,
+    baseUrl: settings.baseUrl || "",
+    model: settings.model || "",
+    voice: settings.voice || "",
+    format: settings.format || "mp3",
+    timeoutMs: settings.timeoutMs,
+    appId: settings.appId || "",
+    cluster: settings.cluster || "",
+    voiceType: settings.voiceType || "",
+    encoding: settings.encoding || settings.format || "mp3",
+    configured: settings.configured,
+    apiKeySet: Boolean(settings.apiKey),
+    accessTokenSet: Boolean(settings.accessToken),
+    updatedAt: settings.updatedAt
+  };
+}
+
 function readModelSettingsInput(body: unknown, current: ReturnType<AppDatabase["getAiModelSettings"]>): AiModelConfig {
   const payload = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
   const rawTimeoutMs = Number(payload.timeoutMs);
@@ -423,6 +507,61 @@ function readModelSettingsInput(body: unknown, current: ReturnType<AppDatabase["
     model: String(payload.model || "").trim(),
     timeoutMs: Number.isFinite(rawTimeoutMs) ? rawTimeoutMs : current.timeoutMs
   };
+}
+
+function readTtsSettingsInput(body: unknown, current: TtsSettings): TtsSettingsInput {
+  const payload = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+  const provider =
+    payload.provider === undefined
+      ? current.provider
+      : payload.provider === "openai-compatible"
+        ? "openai-compatible"
+        : "volcengine";
+  const rawTimeoutMs = Number(payload.timeoutMs);
+  return {
+    provider,
+    baseUrl: textOrCurrent(payload.baseUrl, current.baseUrl),
+    apiKey: textOrCurrent(payload.apiKey, current.apiKey),
+    model: textOrCurrent(payload.model, current.model),
+    voice: textOrCurrent(payload.voice, current.voice),
+    format: textOrCurrent(payload.format, current.format) || "mp3",
+    timeoutMs: Number.isFinite(rawTimeoutMs) ? rawTimeoutMs : current.timeoutMs,
+    appId: textOrCurrent(payload.appId, current.appId),
+    accessToken: textOrCurrent(payload.accessToken, current.accessToken),
+    cluster: textOrCurrent(payload.cluster, current.cluster),
+    voiceType: textOrCurrent(payload.voiceType, current.voiceType),
+    encoding: textOrCurrent(payload.encoding, current.encoding || current.format) || "mp3"
+  };
+}
+
+function ttsSettingsFromInput(input: TtsSettingsInput, current: TtsSettings): TtsSettings {
+  const provider = input.provider;
+  const settings: TtsSettings = {
+    provider,
+    baseUrl: input.baseUrl || current.baseUrl || "",
+    apiKey: input.apiKey || current.apiKey || "",
+    model: input.model || current.model || "",
+    voice: input.voice || current.voice || "",
+    format: input.format || current.format || "mp3",
+    timeoutMs: input.timeoutMs || current.timeoutMs,
+    appId: input.appId || current.appId || "",
+    accessToken: input.accessToken || current.accessToken || "",
+    cluster: input.cluster || current.cluster || "",
+    voiceType: input.voiceType || current.voiceType || "",
+    encoding: input.encoding || current.encoding || input.format || "mp3",
+    configured: false,
+    updatedAt: current.updatedAt
+  };
+  settings.configured =
+    provider === "volcengine"
+      ? Boolean(settings.baseUrl && settings.accessToken && settings.cluster && settings.voiceType)
+      : Boolean(settings.baseUrl && settings.apiKey && settings.model && settings.voice);
+  return settings;
+}
+
+function textOrCurrent(value: unknown, current: string | undefined): string {
+  const text = String(value || "").trim();
+  return text || current || "";
 }
 
 // --- helpers ---

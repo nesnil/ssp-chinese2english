@@ -2,7 +2,18 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { createHash, randomBytes } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
-import type { AiModelConfig, AiModelSettings, AppConfig, GradeResult, WalletChange, WalletSettings, WordEntry } from "./types.js";
+import type {
+  AiModelConfig,
+  AiModelSettings,
+  AppConfig,
+  GradeResult,
+  TtsProvider,
+  TtsSettings,
+  TtsSettingsInput,
+  WalletChange,
+  WalletSettings,
+  WordEntry
+} from "./types.js";
 
 type SubmissionRow = {
   question_id: string;
@@ -255,6 +266,12 @@ export class AppDatabase {
       );
 
       CREATE TABLE IF NOT EXISTS model_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS tts_settings (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -550,7 +567,91 @@ export class AppDatabase {
         databasePath: "",
         aiTimeoutMs: timeoutMs,
         reviewScoreThreshold: 80,
-        nodeEnv: "production"
+        nodeEnv: "production",
+        ttsTimeoutMs: 30000,
+        wordAudioGeneratedDir: ""
+      });
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
+  getTtsSettings(fallback: AppConfig): TtsSettings {
+    const rows = this.db.prepare("SELECT key, value, updated_at FROM tts_settings").all() as Array<{
+      key: string;
+      value: string;
+      updated_at: string;
+    }>;
+    const values = new Map(rows.map((row) => [row.key, row.value]));
+    const updatedAt =
+      rows.reduce<string | null>((latest, row) => {
+        if (!latest || row.updated_at > latest) return row.updated_at;
+        return latest;
+      }, null) || null;
+    const provider = ttsProviderSetting(values.get("provider"), fallback.ttsProvider);
+    const timeoutMs = numberSetting(values.get("timeout_ms"), fallback.ttsTimeoutMs || 30000);
+    const settings: TtsSettings = {
+      provider,
+      baseUrl: stringSetting(values.get("base_url"), fallback.ttsBaseUrl || defaultTtsBaseUrl(provider)),
+      apiKey: stringSetting(values.get("api_key"), fallback.ttsApiKey),
+      model: stringSetting(values.get("model"), fallback.ttsModel || "gpt-4o-mini-tts"),
+      voice: stringSetting(values.get("voice"), fallback.ttsVoice || "alloy"),
+      format: stringSetting(values.get("format"), fallback.ttsFormat || "mp3") || "mp3",
+      timeoutMs,
+      appId: stringSetting(values.get("app_id"), fallback.ttsAppId),
+      accessToken: stringSetting(values.get("access_token"), fallback.ttsAccessToken),
+      cluster: stringSetting(values.get("cluster"), fallback.ttsCluster),
+      voiceType: stringSetting(values.get("voice_type"), fallback.ttsVoiceType),
+      encoding: stringSetting(values.get("encoding"), fallback.ttsEncoding || "mp3") || "mp3",
+      configured: false,
+      updatedAt
+    };
+    settings.configured =
+      provider === "volcengine"
+        ? Boolean(settings.baseUrl && settings.accessToken && settings.cluster && settings.voiceType)
+        : Boolean(settings.baseUrl && settings.apiKey && settings.model && settings.voice);
+    return settings;
+  }
+
+  updateTtsSettings(input: TtsSettingsInput): TtsSettings {
+    const provider = ttsProviderSetting(input.provider);
+    const baseUrl = (input.baseUrl || "").trim() || defaultTtsBaseUrl(provider);
+    const timeoutMs = numberSetting(String(input.timeoutMs || 30000), 30000);
+    const format = (input.format || "mp3").trim() || "mp3";
+    const encoding = (input.encoding || format || "mp3").trim() || "mp3";
+    this.db.exec("BEGIN");
+    try {
+      const upsert = this.db.prepare(`
+        INSERT INTO tts_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+      `);
+      const write = (key: string, value: string | undefined, keepEmpty = false) => {
+        const text = (value || "").trim();
+        if (!text && !keepEmpty) return;
+        upsert.run(key, text);
+      };
+      write("provider", provider, true);
+      write("base_url", baseUrl, true);
+      write("timeout_ms", String(timeoutMs), true);
+      write("format", format, true);
+      write("encoding", encoding, true);
+      write("model", input.model);
+      write("voice", input.voice);
+      write("api_key", input.apiKey);
+      write("app_id", input.appId);
+      write("access_token", input.accessToken);
+      write("cluster", input.cluster);
+      write("voice_type", input.voiceType);
+      this.db.exec("COMMIT");
+      return this.getTtsSettings({
+        port: 3000,
+        databasePath: "",
+        aiTimeoutMs: 30000,
+        reviewScoreThreshold: 80,
+        nodeEnv: "production",
+        ttsTimeoutMs: timeoutMs,
+        wordAudioGeneratedDir: ""
       });
     } catch (error) {
       this.db.exec("ROLLBACK");
@@ -634,7 +735,7 @@ export class AppDatabase {
       .prepare(
         `SELECT id, source_id, name, sort_index, definitions_json, examples_json, similar_json, tags_json, audio_path
          FROM words ${where}
-         ORDER BY sort_index, name
+         ORDER BY name COLLATE NOCASE, name, sort_index
          LIMIT ? OFFSET ?`
       )
       .all(...params, limit, offset) as WordRow[];
@@ -642,7 +743,9 @@ export class AppDatabase {
 
   allWordRows(): WordRow[] {
     return this.db
-      .prepare("SELECT id, source_id, name, sort_index, definitions_json, examples_json, similar_json, tags_json, audio_path FROM words ORDER BY sort_index, name")
+      .prepare(
+        "SELECT id, source_id, name, sort_index, definitions_json, examples_json, similar_json, tags_json, audio_path FROM words ORDER BY name COLLATE NOCASE, name, sort_index"
+      )
       .all() as WordRow[];
   }
 
@@ -682,6 +785,10 @@ export class AppDatabase {
         WHERE id = ?
       `)
       .run(fields.name, fields.definitions_json, fields.examples_json, fields.tags_json, fields.audio_path, id);
+  }
+
+  updateWordAudioPath(id: string, audioPath: string | null): void {
+    this.db.prepare("UPDATE words SET audio_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(audioPath, id);
   }
 
   deleteWord(id: string): void {
@@ -1737,6 +1844,17 @@ function numberSetting(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return Math.min(Math.max(Math.round(parsed), 1000), 120000);
+}
+
+function ttsProviderSetting(value?: string, fallback?: string): TtsProvider {
+  const provider = (value || fallback || "volcengine").trim();
+  return provider === "openai-compatible" ? "openai-compatible" : "volcengine";
+}
+
+function defaultTtsBaseUrl(provider: TtsProvider): string {
+  return provider === "openai-compatible"
+    ? "https://api.openai.com"
+    : "https://openspeech.bytedance.com/api/v3/tts/unidirectional";
 }
 
 const WALLET_DEFAULTS = {

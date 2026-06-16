@@ -74,6 +74,12 @@ npm run typecheck
 - `DATABASE_PATH`，默认 `/app/data/c2e.sqlite`
 - `AI_TIMEOUT_MS`，默认 `30000`
 - `REVIEW_SCORE_THRESHOLD`，默认 `80`
+- `TTS_PROVIDER`，默认 `volcengine`
+- `TTS_BASE_URL`
+- `TTS_API_KEY` / `TTS_MODEL` / `TTS_VOICE` / `TTS_FORMAT`（OpenAI-compatible TTS 默认值）
+- `TTS_APP_ID` / `TTS_ACCESS_TOKEN` / `TTS_CLUSTER` / `TTS_VOICE_TYPE` / `TTS_ENCODING`（火山引擎 TTS 默认值；新版 API Key 模式中 `TTS_ACCESS_TOKEN` 填 API Key，`TTS_CLUSTER` 填 Resource ID，`TTS_VOICE_TYPE` 填 Speaker）
+- `TTS_TIMEOUT_MS`，默认 `30000`
+- `WORD_AUDIO_GENERATED_DIR`，默认 SQLite 数据库旁的 `word-audio/generated`
 
 ## 持久化
 

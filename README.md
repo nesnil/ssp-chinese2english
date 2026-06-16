@@ -32,8 +32,9 @@
 - **独立管理员口令**（`ADMIN_PASSWORD`），与孩子的家庭口令分离；孩子进不了后台。
 - 入口：登录页的「管理员登录」链接，或 `#admin` URL hash，或管理员登录后顶栏的齿轮。
 - **题库管理**：列出全部中译英题目，按 Season / Day 筛选、关键词搜索、分页；增删改查（参考答案可改）。
-- **单词管理**：列出全部单词，按**分类**（中考考纲/高中/四六级候选等）筛选、**A–Z 首字母**筛选、搜索、分页；增删改查，编辑词性（下拉）、释义、例句、分类（多选），列表内可试听发音。
+- **单词管理**：列出全部单词，按**分类**（中考考纲/高中/四六级候选等）筛选、**A–Z 首字母**筛选、搜索、分页；增删改查，编辑词性（下拉）、释义、例句、分类（多选），列表内可试听发音，缺发音时可生成/重新生成 mp3。
 - **AI 模型配置**：在后台「模型」页填写批改用的 Base URL、API Key、模型名、超时（毫秒），保存即时生效、无需改环境变量重启；提供「测试连接」按钮先验证再保存。保存的配置存入 SQLite（`model_settings` 表），优先级高于启动时的 `DEEPSEEK_*` 环境变量；未保存任何配置时回退到环境变量。API Key 仅写不回显。
+- **TTS 发音模型配置**：后台「模型」页单独配置发音 provider，支持 OpenAI-compatible 与火山引擎；火山新版配置包含 Base URL、API Key、Resource ID、Speaker、Encoding、超时。保存到 SQLite（`tts_settings` 表），优先级高于启动时的 `TTS_*` 环境变量；API Key 仅写不回显。生成音频保存在外部数据卷的 `word-audio/generated/`。
 - **钱包管理**：在后台「钱包」页设置奖励/扣除分数条件、奖惩金额区间与提现门槛（单位元），处理待发放的提现（标记「已发放」），手动 ±调整余额（需填原因），查看分页流水。
 - 编辑即时生效（写入 SQLite 后内存缓存重建），无需重新构建或部署。**ID 稳定**：题目/单词的关联键不变，删除只软警告、不级联删历史记录。
 
@@ -154,8 +155,23 @@ docker build --build-arg VITE_BASE_PATH=/subpath/ -t c2e-practice:latest .
 | `DATABASE_PATH` | `/app/data/c2e.sqlite` | SQLite 文件路径。|
 | `AI_TIMEOUT_MS` | `30000` | AI 批改超时（默认值，可被后台「模型」配置覆盖）。|
 | `REVIEW_SCORE_THRESHOLD` | `80` | 进入复习的分数线。|
+| `TTS_PROVIDER` | `volcengine` | TTS 启动默认 provider：`volcengine` 或 `openai-compatible`。|
+| `TTS_BASE_URL` | provider 默认值 | TTS API 地址（默认值，可被后台「模型」配置覆盖）。|
+| `TTS_API_KEY` | 未设 | OpenAI-compatible TTS Key。|
+| `TTS_MODEL` | `gpt-4o-mini-tts` | OpenAI-compatible TTS 模型名。|
+| `TTS_VOICE` | `alloy` | OpenAI-compatible TTS voice。|
+| `TTS_FORMAT` | `mp3` | OpenAI-compatible 音频格式。|
+| `TTS_APP_ID` | 未设 | 火山旧版 App ID；新版 API Key 模式可留空。|
+| `TTS_ACCESS_TOKEN` | 未设 | 火山引擎新版 API Key，保存到兼容字段。|
+| `TTS_CLUSTER` | 未设 | 火山引擎 `X-Api-Resource-Id`，如 `seed-tts-2.0`。|
+| `TTS_VOICE_TYPE` | 未设 | 火山引擎 Speaker / 音色 ID。|
+| `TTS_ENCODING` | `mp3` | 火山引擎 Encoding。|
+| `TTS_TIMEOUT_MS` | `30000` | TTS 请求超时。|
+| `WORD_AUDIO_GENERATED_DIR` | 数据库旁的 `word-audio/generated` | 生成发音文件目录，Docker 默认落在 `/app/data/word-audio/generated`。|
 
 `DEEPSEEK_*` / `AI_TIMEOUT_MS` 是 AI 批改的**启动默认值**；管理员在后台「模型」页保存配置后，运行时改用 SQLite 里的配置（优先级更高），无需改环境变量重启。未保存任何后台配置且环境变量也未设时，AI 批改相关接口返回 503。
+
+`TTS_*` / `WORD_AUDIO_GENERATED_DIR` 是 TTS 发音的**启动默认值**；管理员在后台「模型」页保存 TTS 配置后，运行时改用 SQLite 里的配置。新增/改名单词会尝试自动生成发音；练习播放缺失发音时也会懒生成。生成文件位于外部数据卷，重启容器不会丢。
 
 未配置 AI/鉴权变量时服务仍能启动，但 `/api/health` 会报告未配置，相关接口返回 503。
 
@@ -179,7 +195,7 @@ git push origin main --tags
 
 - `data/`、`.env`、`web/node_modules/`、`web/dist/`、`web/generated/` 不提交到 Git。
 - 语料随 Docker 镜像打包；用户进度保存在外部 SQLite volume。
-- 切勿把 `.env`、DeepSeek Key、家庭/管理员口令提交到仓库。
+- 切勿把 `.env`、DeepSeek Key、TTS Key/Access Token、家庭/管理员口令提交到仓库。
 
 ## License
 
