@@ -19,6 +19,7 @@ import {
   LogOut,
   Pencil,
   Plus,
+  RefreshCw,
   RotateCcw,
   Search,
   Settings,
@@ -2830,6 +2831,21 @@ function AdminWords() {
                     <Volume2 size={15} className="admin-audio" />
                   </button>
                 ) : null}
+                <button
+                  type="button"
+                  className="admin-audio-button"
+                  title={item.hasAudio ? "重新生成发音" : "生成发音"}
+                  onClick={() => generateAudio(item)}
+                  disabled={generatingAudioId === item.id}
+                >
+                  {generatingAudioId === item.id ? (
+                    <Loader2 className="spin admin-audio" size={15} />
+                  ) : item.hasAudio ? (
+                    <RefreshCw size={15} className="admin-audio" />
+                  ) : (
+                    <Volume2 size={15} className="admin-audio missing" />
+                  )}
+                </button>
               </p>
               <p className="admin-sub">
                 {item.definitions.map((d) => `${d.partOfSpeech || ""} ${d.meaning}`.trim()).join("；")}
@@ -2848,15 +2864,6 @@ function AdminWords() {
               ) : null}
             </div>
             <div className="admin-row-actions">
-              <button
-                className="soft-button small admin-audio-generate"
-                title={item.hasAudio ? "重新生成发音" : "生成发音"}
-                onClick={() => generateAudio(item)}
-                disabled={generatingAudioId === item.id}
-              >
-                {generatingAudioId === item.id ? <Loader2 className="spin" size={16} /> : <Volume2 size={16} />}
-                {item.hasAudio ? "重生成" : "生成发音"}
-              </button>
               <button className="icon-button" title="编辑" onClick={() => setEditing(item)}>
                 <Pencil size={18} />
               </button>

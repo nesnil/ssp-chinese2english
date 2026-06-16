@@ -2120,6 +2120,10 @@ button.history-card {
   color: #30b856;
 }
 
+.admin-audio.missing {
+  color: #b8c1d4;
+}
+
 .admin-audio-button {
   border: 0;
   background: transparent;
@@ -2165,12 +2169,6 @@ button.history-card {
   width: 40px;
   height: 40px;
   border-radius: 14px;
-}
-
-.admin-audio-generate {
-  min-height: 40px;
-  padding: 0 12px;
-  white-space: nowrap;
 }
 
 .admin-empty {
