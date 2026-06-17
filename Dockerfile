@@ -22,6 +22,7 @@ FROM node:22-bookworm-slim AS runtime
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV DATABASE_PATH=/app/data/c2e.sqlite
+ENV TZ=Asia/Shanghai
 
 WORKDIR /app
 

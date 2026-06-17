@@ -168,6 +168,21 @@ button {
   box-shadow: 0 2px 0 rgba(25, 57, 75, 0.2);
 }
 
+.home-nav-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.home-nav-row .home-tabs {
+  margin: 0;
+}
+
+.activity-entry-button {
+  flex: 0 0 auto;
+}
+
 .home-tabs {
   display: inline-flex;
   gap: 6px;
@@ -621,6 +636,402 @@ button {
   box-shadow: 0 6px 0 #d87913;
 }
 
+.activity-header {
+  align-items: center;
+}
+
+.activity-header .soft-button {
+  justify-self: start;
+}
+
+.activity-header > div:not(.activity-year-switcher) {
+  justify-items: center;
+  text-align: center;
+}
+
+.activity-year-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.practice-header .activity-year-switcher {
+  display: inline-flex;
+  justify-items: initial;
+}
+
+.activity-year-switcher b {
+  min-width: 72px;
+  color: #172033;
+  font-size: 22px;
+  font-weight: 1000;
+  text-align: center;
+}
+
+.activity-year-switcher .icon-button {
+  width: 42px;
+  height: 42px;
+  border-radius: 16px;
+}
+
+.activity-top-panel {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.activity-summary-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.activity-summary-strip span {
+  min-height: 54px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 12px;
+  border: 2px solid rgba(255, 255, 255, 0.78);
+  border-radius: 18px;
+  color: #586981;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 7px 16px rgba(47, 79, 122, 0.1);
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.activity-summary-strip svg {
+  color: #27a8ff;
+  flex-shrink: 0;
+}
+
+.activity-summary-strip span:first-child svg {
+  color: #ff8f5e;
+}
+
+.activity-summary-strip span:nth-child(2) svg {
+  color: #ffb23f;
+}
+
+.activity-summary-strip span:nth-child(3) svg {
+  color: #35c85a;
+}
+
+.activity-summary-strip b {
+  color: #172033;
+  font-size: 18px;
+}
+
+.activity-layout {
+  display: block;
+}
+
+.activity-calendar-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.activity-calendar-legend {
+  color: #697891;
+  font-weight: 800;
+}
+
+.activity-today-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 15px;
+  color: #ffffff;
+  background: #f5453f;
+  box-shadow: 0 4px 0 #b81f1a;
+  font-weight: 1000;
+}
+
+.activity-today-button svg {
+  color: #ffffff;
+}
+
+.activity-today-button:hover {
+  background: #ff5a54;
+}
+
+.activity-calendar-panel,
+.activity-detail-panel {
+  border: 2px solid rgba(255, 255, 255, 0.78);
+  border-radius: 30px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 12px 28px rgba(47, 79, 122, 0.13);
+}
+
+.activity-calendar-panel {
+  padding: 20px;
+}
+
+.activity-months {
+  display: grid;
+  gap: 16px;
+}
+
+.activity-month {
+  display: grid;
+  gap: 10px;
+}
+
+.activity-month h3 {
+  width: fit-content;
+  margin: 0;
+  padding: 7px 14px;
+  border-radius: 999px;
+  color: #21784c;
+  background: #e3f3ea;
+  font-size: 15px;
+  font-weight: 1000;
+}
+
+.activity-day-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+  gap: 10px;
+}
+
+.activity-day {
+  position: relative;
+  min-height: 84px;
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  padding: 9px 10px 10px;
+  border: 0;
+  border-radius: 20px;
+  color: #52627f;
+  background: #eef3f9;
+  box-shadow: 0 5px 0 #ccd8e7;
+  text-align: left;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+/* 未做：灰色（默认） / 做了一项：黄色 / 全部完成：蓝色 */
+.activity-day.level-partial {
+  color: #8a5a08;
+  background: #fff2cc;
+  box-shadow: 0 5px 0 #f0cf7a;
+}
+
+.activity-day.level-full {
+  color: #ffffff;
+  background: linear-gradient(180deg, #27a8ff, #5576ff);
+  box-shadow: 0 5px 0 #2758bc;
+}
+
+.activity-day.today {
+  outline: 3px solid #f5453f;
+  outline-offset: 2px;
+}
+
+.activity-day.selected {
+  box-shadow: 0 5px 0 #ccd8e7, 0 0 0 4px rgba(39, 168, 255, 0.32);
+}
+
+.activity-day.level-partial.selected {
+  box-shadow: 0 5px 0 #f0cf7a, 0 0 0 4px rgba(39, 168, 255, 0.32);
+}
+
+.activity-day.level-full.selected {
+  box-shadow: 0 5px 0 #2758bc, 0 0 0 4px rgba(39, 168, 255, 0.32);
+}
+
+.activity-day b {
+  font-size: 18px;
+  font-weight: 1000;
+  line-height: 1;
+}
+
+.activity-day-rows {
+  display: grid;
+  gap: 5px;
+  margin-top: 3px;
+}
+
+.activity-cell-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 1000;
+  line-height: 1;
+}
+
+.activity-cell-icon {
+  flex-shrink: 0;
+}
+
+.activity-cell-score {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 未练:整行变淡 */
+.activity-cell-row.none {
+  opacity: 0.45;
+}
+
+.activity-cell-row.none .activity-cell-icon,
+.activity-cell-row.none .activity-cell-score {
+  color: #8b98ad;
+}
+
+/* 做过:翻译用蓝、单词用绿 */
+.activity-cell-row.done.sentence .activity-cell-icon {
+  color: #2a7de1;
+}
+
+.activity-cell-row.done.word .activity-cell-icon {
+  color: #2faa52;
+}
+
+.activity-cell-row.done .activity-cell-score {
+  color: #2a3346;
+}
+
+/* 满分:发光星标 + 高亮分数 */
+.activity-cell-row.perfect .activity-cell-score {
+  color: #e88800;
+}
+
+.activity-cell-star {
+  color: #ffb300;
+  filter: drop-shadow(0 0 3px rgba(255, 179, 0, 0.7));
+}
+
+/* 全部完成(蓝底)时,行内文字与图标转白 */
+.activity-day.level-full .activity-cell-row .activity-cell-icon,
+.activity-day.level-full .activity-cell-row .activity-cell-score {
+  color: #ffffff;
+}
+
+.activity-day.level-full .activity-cell-row.none {
+  opacity: 0.6;
+}
+
+.activity-day.level-full .activity-cell-row.perfect .activity-cell-score {
+  color: #fff2c2;
+}
+
+.activity-day.level-full .activity-cell-star {
+  color: #ffe27a;
+  filter: drop-shadow(0 0 3px rgba(255, 226, 122, 0.9));
+}
+
+.activity-detail-panel {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.72fr) minmax(320px, 1fr);
+  gap: 16px 22px;
+  align-items: center;
+  padding: clamp(20px, 3.2vw, 30px);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.93), rgba(234, 248, 255, 0.93)),
+    linear-gradient(135deg, #ffe27a, #5bd46f 52%, #27a8ff);
+}
+
+.activity-detail-date {
+  width: fit-content;
+  grid-column: 1;
+  padding: 7px 12px;
+  border-radius: 999px;
+  color: #21784c;
+  background: #e5fbdf;
+  font-size: 13px;
+  font-weight: 1000;
+}
+
+.activity-detail-panel h1 {
+  grid-column: 1;
+  margin: 0;
+  color: #172033;
+  font-size: clamp(28px, 4vw, 40px);
+  line-height: 1.08;
+}
+
+.activity-detail-tags {
+  grid-column: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.activity-detail-tags span {
+  padding: 7px 11px;
+  border-radius: 999px;
+  color: #52627f;
+  background: #eef3f9;
+  font-size: 13px;
+  font-weight: 1000;
+}
+
+.activity-detail-tags .complete {
+  color: #1f6d3f;
+  background: #e3fbdf;
+}
+
+.activity-detail-tags .partial {
+  color: #1379c1;
+  background: #e3f3ff;
+}
+
+.activity-detail-tags .none {
+  color: #8b98ad;
+  background: #f0f3f7;
+}
+
+.activity-event-list {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  display: grid;
+  gap: 10px;
+}
+
+.activity-event {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 18px;
+  background: #f7faff;
+}
+
+.activity-event > span {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: 16px;
+  color: #ffffff;
+  background: #27a8ff;
+}
+
+.activity-event.word > span {
+  background: #35c85a;
+}
+
+.activity-event strong {
+  display: block;
+  color: #172033;
+  font-size: 15px;
+}
+
+.activity-event small {
+  color: #6f7e98;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
 .login-page {
   min-height: 100vh;
   display: grid;
@@ -675,6 +1086,10 @@ button {
 
 .practice-shell {
   max-width: 880px;
+}
+
+.activity-shell {
+  max-width: 1120px;
 }
 
 .practice-header {
@@ -1722,6 +2137,18 @@ button.history-card {
     border-radius: 28px;
   }
 
+  .home-nav-row {
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .home-nav-row .activity-entry-button {
+    width: 52px;
+    height: auto;
+    min-height: 60px;
+    border-radius: 20px;
+  }
+
   .home-tabs {
     width: 100%;
     display: grid;
@@ -1795,6 +2222,67 @@ button.history-card {
   .day-node {
     min-height: 68px;
     border-radius: 22px;
+  }
+
+  .activity-header {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .activity-header > div:not(.activity-year-switcher) {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .activity-year-switcher {
+    justify-self: start;
+  }
+
+  .activity-summary-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .activity-summary-strip span {
+    justify-content: flex-start;
+    min-height: 48px;
+    font-size: 13px;
+  }
+
+  .activity-detail-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .activity-detail-date,
+  .activity-detail-panel h1,
+  .activity-detail-tags,
+  .activity-event-list {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .activity-calendar-panel {
+    padding: 16px;
+  }
+
+  .activity-calendar-title {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .activity-day-grid {
+    grid-template-columns: repeat(auto-fill, minmax(74px, 1fr));
+    gap: 8px;
+  }
+
+  .activity-day {
+    min-height: 88px;
+    border-radius: 18px;
+    padding: 9px 7px 7px;
+  }
+
+  .activity-line {
+    font-size: 10px;
+    padding-inline: 5px;
   }
 
   .feedback {

@@ -3,7 +3,7 @@ import { accessSync, constants, mkdirSync } from "node:fs";
 import express, { type NextFunction, type Request, type Response } from "express";
 import { loadConfig, publicDir } from "./config.js";
 import { registerAdminRoutes, walletTxToJson } from "./adminRoutes.js";
-import { AppDatabase, computeDayProgress } from "./db.js";
+import { AppDatabase, computeDayProgress, shanghaiDateString } from "./db.js";
 import { AiConfigError, gradeAnswer, gradeExampleRecall, gradeWordRecall } from "./grader.js";
 import { generateWordAudio } from "./tts.js";
 import { getBank, getDayQuestions, getQuestion, initQuestionBank, loadSeedQuestionBank, toPublicQuestion } from "./questionBank.js";
@@ -533,6 +533,13 @@ app.get("/api/progress", requireAuth, (_req, res) => {
     reviewMasteredQuestionCount: reviewStats.reviewMasteredQuestionCount,
     recent: database.recentSubmissions(8)
   });
+});
+
+app.get("/api/activity-calendar", requireAuth, (req, res) => {
+  const currentYear = Number(shanghaiDateString(new Date()).slice(0, 4));
+  const requestedYear = Number(req.query.year);
+  const year = Number.isInteger(requestedYear) && requestedYear >= 2000 && requestedYear <= 2100 ? requestedYear : currentYear;
+  res.json(database.getActivityCalendar(year));
 });
 
 app.get("/api/wallet", requireAuth, (_req, res) => {

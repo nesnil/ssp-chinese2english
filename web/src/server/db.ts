@@ -176,6 +176,46 @@ export type WalletTransactionRow = {
   created_at: string;
 };
 
+export type ActivityPracticeStatus = "none" | "partial" | "complete";
+
+export type ActivityPracticeSummary = {
+  status: ActivityPracticeStatus;
+  label: string;
+  score: number | null;
+  count: number;
+  time: string | null;
+};
+
+export type ActivityCalendarEvent = {
+  type: "sentence" | "word";
+  label: string;
+  detail: string;
+  score: number | null;
+  time: string | null;
+  occurredAt: string | null;
+};
+
+export type ActivityCalendarDay = {
+  date: string;
+  completed: boolean;
+  sentence: ActivityPracticeSummary;
+  word: ActivityPracticeSummary;
+  events: ActivityCalendarEvent[];
+};
+
+export type ActivityCalendar = {
+  year: number;
+  today: string;
+  summary: {
+    currentStreak: number;
+    longestStreak: number;
+    completedDays: number;
+    totalPracticeCount: number;
+    averageScore: number | null;
+  };
+  days: ActivityCalendarDay[];
+};
+
 type WalletSettleInput =
   | { source: "sentence"; questionId: string; submissionId: number; score: number; errorSummary?: string | null }
   | { source: "word"; wordId: string; phase: WordSubmissionPhase; submissionId: number; score: number; errorSummary?: string | null };
@@ -244,6 +284,7 @@ export class AppDatabase {
 
       CREATE INDEX IF NOT EXISTS idx_submissions_question ON submissions(question_id, created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_submissions_day ON submissions(season, day, question_no);
+      CREATE INDEX IF NOT EXISTS idx_submissions_created_at ON submissions(created_at);
       CREATE INDEX IF NOT EXISTS idx_sessions_token ON app_sessions(token_hash);
 
       CREATE TABLE IF NOT EXISTS day_attempts (
@@ -258,6 +299,7 @@ export class AppDatabase {
       );
 
       CREATE INDEX IF NOT EXISTS idx_day_attempts_day ON day_attempts(season, day, status, completed_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_day_attempts_completed_at ON day_attempts(completed_at);
 
       CREATE TABLE IF NOT EXISTS word_settings (
         key TEXT PRIMARY KEY,
@@ -319,9 +361,11 @@ export class AppDatabase {
       );
 
       CREATE INDEX IF NOT EXISTS idx_word_sessions_status ON word_sessions(status, started_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_word_sessions_completed_at ON word_sessions(completed_at);
       CREATE INDEX IF NOT EXISTS idx_word_session_items_session ON word_session_items(session_id, item_no);
       CREATE INDEX IF NOT EXISTS idx_word_submissions_word ON word_submissions(word_id, phase, id DESC);
       CREATE INDEX IF NOT EXISTS idx_word_submissions_session ON word_submissions(session_id, word_id, phase);
+      CREATE INDEX IF NOT EXISTS idx_word_submissions_created_at ON word_submissions(created_at);
 
       CREATE TABLE IF NOT EXISTS questions (
         id TEXT PRIMARY KEY,
@@ -1561,6 +1605,252 @@ export class AppDatabase {
     };
   }
 
+  getActivityCalendar(year: number, today = shanghaiDateString(new Date())): ActivityCalendar {
+    const startDate = `${year}-01-01`;
+    const endDate = `${year + 1}-01-01`;
+    const startTimestamp = shanghaiDateStartUtcTimestamp(startDate);
+    const endTimestamp = shanghaiDateStartUtcTimestamp(endDate);
+    const days = new Map<string, ActivityCalendarDay>();
+    for (const date of datesInYear(year)) {
+      days.set(date, {
+        date,
+        completed: false,
+        sentence: emptyActivitySummary("中译英未做"),
+        word: emptyActivitySummary("单词未练"),
+        events: []
+      });
+    }
+
+    const sentenceCompletions = this.db
+      .prepare(
+        `
+        SELECT
+          date(datetime(completed_at, '+8 hours')) AS activity_date,
+          season,
+          day,
+          question_count,
+          average_score,
+          completed_at
+        FROM day_attempts
+        WHERE status = 'completed'
+          AND completed_at IS NOT NULL
+          AND completed_at >= ?
+          AND completed_at < ?
+        ORDER BY datetime(completed_at) ASC, id ASC
+      `
+      )
+      .all(startTimestamp, endTimestamp) as Array<{
+      activity_date: string;
+      season: number;
+      day: number;
+      question_count: number;
+      average_score: number | null;
+      completed_at: string;
+    }>;
+
+    const sentenceSubmissions = this.db
+      .prepare(
+        `
+        SELECT
+          date(datetime(created_at, '+8 hours')) AS activity_date,
+          COUNT(*) AS submission_count,
+          COUNT(DISTINCT question_id) AS question_count,
+          ROUND(AVG(score)) AS average_score,
+          MAX(created_at) AS latest_at
+        FROM submissions
+        WHERE created_at >= ?
+          AND created_at < ?
+        GROUP BY activity_date
+      `
+      )
+      .all(startTimestamp, endTimestamp) as Array<{
+      activity_date: string;
+      submission_count: number;
+      question_count: number;
+      average_score: number | null;
+      latest_at: string | null;
+    }>;
+
+    const wordCompletions = this.db
+      .prepare(
+        `
+        SELECT
+          date(datetime(completed_at, '+8 hours')) AS activity_date,
+          mode,
+          level_id,
+          word_count,
+          average_score,
+          completed_at
+        FROM word_sessions
+        WHERE status = 'completed'
+          AND completed_at IS NOT NULL
+          AND completed_at >= ?
+          AND completed_at < ?
+        ORDER BY datetime(completed_at) ASC, id ASC
+      `
+      )
+      .all(startTimestamp, endTimestamp) as Array<{
+      activity_date: string;
+      mode: string;
+      level_id: string | null;
+      word_count: number;
+      average_score: number | null;
+      completed_at: string;
+    }>;
+
+    const wordSubmissions = this.db
+      .prepare(
+        `
+        SELECT
+          date(datetime(created_at, '+8 hours')) AS activity_date,
+          COUNT(*) AS submission_count,
+          COUNT(DISTINCT word_id) AS word_count,
+          ROUND(AVG(score)) AS average_score,
+          MAX(created_at) AS latest_at
+        FROM word_submissions
+        WHERE created_at >= ?
+          AND created_at < ?
+        GROUP BY activity_date
+      `
+      )
+      .all(startTimestamp, endTimestamp) as Array<{
+      activity_date: string;
+      submission_count: number;
+      word_count: number;
+      average_score: number | null;
+      latest_at: string | null;
+    }>;
+
+    const sentenceSubmissionsByDate = new Map(sentenceSubmissions.map((row) => [row.activity_date, row]));
+    const wordSubmissionsByDate = new Map(wordSubmissions.map((row) => [row.activity_date, row]));
+    const sentenceCompletionCounts = new Map<string, number>();
+    const wordCompletionCounts = new Map<string, number>();
+
+    for (const row of sentenceCompletions) {
+      const day = days.get(row.activity_date);
+      if (!day) continue;
+      const count = (sentenceCompletionCounts.get(row.activity_date) || 0) + 1;
+      sentenceCompletionCounts.set(row.activity_date, count);
+      day.completed = true;
+      day.sentence = {
+        status: "complete",
+        label: count > 1 ? `中译英完成 ${count} 次` : "中译英完成",
+        score: row.average_score,
+        count,
+        time: shanghaiTime(row.completed_at)
+      };
+      day.events.push({
+        type: "sentence",
+        label: `中译英 S${row.season} Day ${row.day}`,
+        detail: `完成 ${scoreText(row.average_score)} · ${row.question_count} 题`,
+        score: row.average_score,
+        time: shanghaiTime(row.completed_at),
+        occurredAt: row.completed_at
+      });
+    }
+
+    for (const row of sentenceSubmissions) {
+      const day = days.get(row.activity_date);
+      if (!day) continue;
+      day.completed = true;
+      if (day.sentence.status === "none") {
+        day.sentence = {
+          status: "partial",
+          label: `中译英 ${row.question_count} 题`,
+          score: row.average_score,
+          count: row.question_count,
+          time: row.latest_at ? shanghaiTime(row.latest_at) : null
+        };
+        day.events.push({
+          type: "sentence",
+          label: "中译英",
+          detail: `已做 ${row.question_count} 题 · 均分 ${scoreText(row.average_score)}`,
+          score: row.average_score,
+          time: row.latest_at ? shanghaiTime(row.latest_at) : null,
+          occurredAt: row.latest_at
+        });
+      }
+    }
+
+    for (const row of wordCompletions) {
+      const day = days.get(row.activity_date);
+      if (!day) continue;
+      const count = (wordCompletionCounts.get(row.activity_date) || 0) + 1;
+      wordCompletionCounts.set(row.activity_date, count);
+      day.completed = true;
+      day.word = {
+        status: "complete",
+        label: count > 1 ? `词汇完成 ${count} 次` : "词汇完成",
+        score: row.average_score,
+        count,
+        time: shanghaiTime(row.completed_at)
+      };
+      day.events.push({
+        type: "word",
+        label: "词汇练习",
+        detail: `${wordSessionLabel(row.mode, row.level_id)} · ${row.word_count} 词 · ${scoreText(row.average_score)}`,
+        score: row.average_score,
+        time: shanghaiTime(row.completed_at),
+        occurredAt: row.completed_at
+      });
+    }
+
+    for (const row of wordSubmissions) {
+      const day = days.get(row.activity_date);
+      if (!day) continue;
+      day.completed = true;
+      if (day.word.status === "none") {
+        day.word = {
+          status: "partial",
+          label: `单词 ${row.word_count} 个`,
+          score: row.average_score,
+          count: row.word_count,
+          time: row.latest_at ? shanghaiTime(row.latest_at) : null
+        };
+        day.events.push({
+          type: "word",
+          label: "词汇练习",
+          detail: `已练 ${row.word_count} 个词 · 均分 ${scoreText(row.average_score)}`,
+          score: row.average_score,
+          time: row.latest_at ? shanghaiTime(row.latest_at) : null,
+          occurredAt: row.latest_at
+        });
+      }
+    }
+
+    for (const day of days.values()) {
+      day.events.sort((a, b) => String(a.occurredAt || "").localeCompare(String(b.occurredAt || "")));
+    }
+
+    const averageRow = this.db
+      .prepare(
+        `
+        SELECT ROUND(AVG(score)) AS average_score, COUNT(*) AS practice_count
+        FROM (
+          SELECT score FROM submissions WHERE created_at >= ? AND created_at < ?
+          UNION ALL
+          SELECT score FROM word_submissions WHERE created_at >= ? AND created_at < ?
+        )
+      `
+      )
+      .get(startTimestamp, endTimestamp, startTimestamp, endTimestamp) as { average_score: number | null; practice_count: number };
+
+    const orderedDays = [...days.values()];
+    const anchorDate = activityAnchorDate(year, today);
+    return {
+      year,
+      today,
+      summary: {
+        currentStreak: computeCurrentStreak(orderedDays, today),
+        longestStreak: computeLongestStreak(orderedDays, anchorDate),
+        completedDays: orderedDays.filter((day) => day.completed).length,
+        totalPracticeCount: averageRow.practice_count,
+        averageScore: averageRow.average_score === null ? null : Number(averageRow.average_score)
+      },
+      days: orderedDays
+    };
+  }
+
   // --- 钱包(Wallet):满分奖励 / 低分惩罚流水、提现、家长配置 ---
 
   getWalletSettings(): WalletSettings {
@@ -1803,6 +2093,91 @@ function parseIssues(raw: string): string[] {
   } catch {
     return [];
   }
+}
+
+const SQLITE_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+const SHANGHAI_OFFSET_MS = 8 * 60 * 60 * 1000;
+
+export function shanghaiDateString(value: Date | string): string {
+  const date = typeof value === "string" ? dateFromStoredTimestamp(value) : value;
+  return new Date(date.getTime() + SHANGHAI_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+function shanghaiTime(value: string): string {
+  const shifted = new Date(dateFromStoredTimestamp(value).getTime() + SHANGHAI_OFFSET_MS);
+  return shifted.toISOString().slice(11, 16);
+}
+
+function shanghaiDateStartUtcTimestamp(date: string): string {
+  const [year, month, day] = date.split("-").map(Number);
+  const utcStart = new Date(Date.UTC(year, month - 1, day) - SHANGHAI_OFFSET_MS);
+  return utcStart.toISOString().slice(0, 19).replace("T", " ");
+}
+
+function dateFromStoredTimestamp(value: string): Date {
+  return new Date(SQLITE_TIMESTAMP_PATTERN.test(value) ? `${value.replace(" ", "T")}Z` : value);
+}
+
+function datesInYear(year: number): string[] {
+  const dates: string[] = [];
+  for (let time = Date.UTC(year, 0, 1); ; time += 24 * 60 * 60 * 1000) {
+    const date = new Date(time).toISOString().slice(0, 10);
+    if (!date.startsWith(`${year}-`)) break;
+    dates.push(date);
+  }
+  return dates;
+}
+
+function addDays(date: string, days: number): string {
+  const [year, month, day] = date.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
+function emptyActivitySummary(label: string): ActivityPracticeSummary {
+  return { status: "none", label, score: null, count: 0, time: null };
+}
+
+function scoreText(score: number | null): string {
+  return score === null ? "--分" : `${score}分`;
+}
+
+function wordSessionLabel(mode: string, levelId: string | null): string {
+  if (mode === "review") return "复习";
+  if (levelId) return `关卡 ${levelId.toUpperCase()}`;
+  return "自由练习";
+}
+
+function activityAnchorDate(year: number, today: string): string | null {
+  const todayYear = Number(today.slice(0, 4));
+  if (todayYear < year) return null;
+  if (todayYear === year) return today;
+  return `${year}-12-31`;
+}
+
+function computeCurrentStreak(days: ActivityCalendarDay[], today: string): number {
+  const byDate = new Map(days.map((day) => [day.date, day]));
+  if (!byDate.has(today)) return 0;
+  let count = 0;
+  for (let date = today; byDate.has(date); date = addDays(date, -1)) {
+    if (!byDate.get(date)?.completed) break;
+    count += 1;
+  }
+  return count;
+}
+
+function computeLongestStreak(days: ActivityCalendarDay[], anchorDate: string | null): number {
+  let current = 0;
+  let longest = 0;
+  for (const day of days) {
+    if (anchorDate && day.date > anchorDate) break;
+    if (day.completed) {
+      current += 1;
+      longest = Math.max(longest, current);
+    } else {
+      current = 0;
+    }
+  }
+  return longest;
 }
 
 export function computeDayProgress(latestRows: SubmissionRow[], dayQuestionCounts: Map<string, number>, reviewThreshold = 80) {

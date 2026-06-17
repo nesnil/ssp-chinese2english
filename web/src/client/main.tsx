@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   ArrowRight,
   BadgeCheck,
   BookOpen,
+  CalendarDays,
   Check,
   CheckCircle2,
   ChevronLeft,
@@ -12,6 +13,7 @@ import {
   ChevronsRight,
   Coins,
   Flag,
+  Flame,
   History,
   Heart,
   ListChecks,
@@ -80,6 +82,46 @@ type Progress = {
   reviewedQuestionCount: number;
   reviewSubmissionCount: number;
   reviewMasteredQuestionCount: number;
+};
+
+type ActivityPracticeStatus = "none" | "partial" | "complete";
+
+type ActivityPracticeSummary = {
+  status: ActivityPracticeStatus;
+  label: string;
+  score: number | null;
+  count: number;
+  time: string | null;
+};
+
+type ActivityCalendarEvent = {
+  type: "sentence" | "word";
+  label: string;
+  detail: string;
+  score: number | null;
+  time: string | null;
+  occurredAt: string | null;
+};
+
+type ActivityCalendarDay = {
+  date: string;
+  completed: boolean;
+  sentence: ActivityPracticeSummary;
+  word: ActivityPracticeSummary;
+  events: ActivityCalendarEvent[];
+};
+
+type ActivityCalendarData = {
+  year: number;
+  today: string;
+  summary: {
+    currentStreak: number;
+    longestStreak: number;
+    completedDays: number;
+    totalPracticeCount: number;
+    averageScore: number | null;
+  };
+  days: ActivityCalendarDay[];
 };
 
 type WordProgress = {
@@ -245,6 +287,7 @@ function App() {
   const [activeDay, setActiveDay] = useState<{ season: number; day: number } | null>(null);
   const [reviewMode, setReviewMode] = useState<"center" | "practice" | null>(null);
   const [walletOpen, setWalletOpen] = useState(false);
+  const [activityOpen, setActivityOpen] = useState(false);
   const [wallet, setWallet] = useState<WalletSummary | null>(null);
   const [homeMode, setHomeMode] = useState<"sentences" | "words">("sentences");
   const [role, setRole] = useState<"user" | "admin">("user");
@@ -337,6 +380,17 @@ function App() {
     );
   }
 
+  if (activityOpen) {
+    return (
+      <ActivityCalendarScreen
+        onBack={() => {
+          setActivityOpen(false);
+          refresh();
+        }}
+      />
+    );
+  }
+
   if (activeDay) {
     return (
       <PracticeScreen
@@ -380,7 +434,12 @@ function App() {
       }}
     >
       {error ? <div className="notice danger">{error}</div> : null}
-      <HomeTabs active={homeMode} onChange={setHomeMode} progress={progress} wordProgress={wordProgress} />
+      <div className="home-nav-row">
+        <button className="icon-button activity-entry-button" onClick={() => setActivityOpen(true)} title="每日完成情况" aria-label="每日完成情况">
+          <CalendarDays size={21} />
+        </button>
+        <HomeTabs active={homeMode} onChange={setHomeMode} progress={progress} wordProgress={wordProgress} />
+      </div>
       {homeMode === "sentences" ? (
         <Dashboard
           progress={progress}
@@ -927,6 +986,200 @@ function walletTxCaption(tx: WalletTx): string {
   if (match) return `S${match[1]} Day ${match[2]} 第 ${match[3]} 题`;
   if (tx.source === "word") return tx.refId.endsWith(":example") ? "单词练习 · 例句" : "单词练习 · 默写";
   return "";
+}
+
+function ActivityCalendarScreen({ onBack }: { onBack: () => void }) {
+  const [year, setYear] = useState(currentShanghaiYear);
+  const [data, setData] = useState<ActivityCalendarData | null>(null);
+  const [selectedDate, setSelectedDate] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const todayButtonRef = useRef<HTMLButtonElement | null>(null);
+  const pendingTodayScrollRef = useRef(false);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setError("");
+    api(`/api/activity-calendar?year=${year}`)
+      .then((response: ActivityCalendarData) => {
+        if (!alive) return;
+        setData(response);
+        setSelectedDate((current) => selectActivityDate(response, current));
+      })
+      .catch((err) => {
+        if (alive) setError(err instanceof Error ? err.message : "每日完成情况加载失败");
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [year]);
+
+  const months = useMemo(() => (data ? groupActivityMonths(data.days) : []), [data]);
+  const selectedDay = data?.days.find((day) => day.date === selectedDate) || null;
+  const averageScore = data?.summary.averageScore ?? null;
+  const todayYear = data ? Number(data.today.slice(0, 4)) : currentShanghaiYear();
+
+  useEffect(() => {
+    if (!data || !pendingTodayScrollRef.current || year !== todayYear) return;
+    pendingTodayScrollRef.current = false;
+    setSelectedDate(data.today);
+    requestAnimationFrame(() => {
+      todayButtonRef.current?.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+    });
+  }, [data, todayYear, year]);
+
+  function jumpToToday() {
+    if (!data) return;
+    pendingTodayScrollRef.current = true;
+    if (year !== todayYear) {
+      setYear(todayYear);
+      return;
+    }
+    setSelectedDate(data.today);
+    requestAnimationFrame(() => {
+      todayButtonRef.current?.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+      pendingTodayScrollRef.current = false;
+    });
+  }
+
+  return (
+    <main className="practice-shell activity-shell">
+      <header className="practice-header activity-header">
+        <button className="soft-button" onClick={onBack}>
+          返回地图
+        </button>
+        <div>
+          <strong>每日完成情况</strong>
+        </div>
+        <div className="activity-year-switcher" aria-label="选择年份">
+          <button className="icon-button" onClick={() => setYear((value) => value - 1)} title="上一年">
+            <ChevronLeft size={20} />
+          </button>
+          <b>{year}</b>
+          <button className="icon-button" onClick={() => setYear((value) => value + 1)} title="下一年">
+            <ChevronRight size={20} />
+          </button>
+        </div>
+      </header>
+
+      {loading ? <LoadingScreen compact /> : null}
+      {error ? <div className="notice danger">{error}</div> : null}
+
+      {!loading && data ? (
+        <>
+          <section className="activity-top-panel">
+            <div className="activity-detail-panel">
+              {selectedDay ? (
+                <>
+                  <span className="activity-detail-date">{formatActivityDate(selectedDay.date)}</span>
+                  <h1>{selectedDay.completed ? "这天练过啦" : "这天还没有练习"}</h1>
+                  <div className="activity-detail-tags">
+                    <span className={selectedDay.sentence.status}>{selectedDay.sentence.label}</span>
+                    <span className={selectedDay.word.status}>{selectedDay.word.label}</span>
+                  </div>
+                  <div className="activity-event-list">
+                    {selectedDay.events.length ? (
+                      selectedDay.events.map((event, index) => (
+                        <article key={`${event.type}-${event.occurredAt || index}`} className={`activity-event ${event.type}`}>
+                          <span>{event.type === "sentence" ? <Flag size={18} /> : <BookOpen size={18} />}</span>
+                          <div>
+                            <strong>{event.label}</strong>
+                            <small>
+                              {event.time ? `${event.time} · ` : ""}
+                              {event.detail}
+                            </small>
+                          </div>
+                        </article>
+                      ))
+                    ) : (
+                      <p className="wallet-empty">这天还没有记录。中译英和单词练习都会自动出现在这里。</p>
+                    )}
+                  </div>
+                </>
+              ) : null}
+            </div>
+
+            <div className="activity-summary-strip" aria-label="年度完成总览">
+              <span>
+                <Flame size={17} />
+                当前连续 <b>{data.summary.currentStreak} 天</b>
+              </span>
+              <span>
+                <Trophy size={17} />
+                最长 <b>{data.summary.longestStreak} 天</b>
+              </span>
+              <span>
+                <CalendarDays size={17} />
+                完成 <b>{data.summary.completedDays}/{data.days.length}</b>
+              </span>
+              <span>
+                <Star size={17} />
+                均分 <b>{averageScore === null ? "--" : averageScore}</b>
+              </span>
+            </div>
+          </section>
+
+          <section className="activity-layout">
+            <div className="activity-calendar-panel">
+              <div className="section-title">
+                <div className="activity-calendar-title">
+                  <h2>{year} 年日历</h2>
+                  <button className="activity-today-button" onClick={jumpToToday}>
+                    <CalendarDays size={17} />
+                    今天
+                  </button>
+                </div>
+                <span className="activity-calendar-legend">蓝色为全部完成，黄色为做了一项，灰色为未练</span>
+              </div>
+              <div className="activity-months">
+                {months.map((month) => (
+                  <article key={month.key} className="activity-month">
+                    <h3>{month.label}</h3>
+                    <div className="activity-day-grid">
+                      {month.days.map((day) => (
+                        <button
+                          key={day.date}
+                          className={`activity-day level-${activityDayLevel(day)} ${
+                            day.date === selectedDate ? "selected" : ""
+                          } ${day.date === data.today ? "today" : ""}`}
+                          ref={day.date === data.today ? todayButtonRef : undefined}
+                          onClick={() => setSelectedDate(day.date)}
+                          title={activityDayTitle(day)}
+                        >
+                          <b>{Number(day.date.slice(8, 10))}</b>
+                          <div className="activity-day-rows">
+                            <ActivityCellRow kind="sentence" summary={day.sentence} />
+                            <ActivityCellRow kind="word" summary={day.word} />
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </section>
+        </>
+      ) : null}
+    </main>
+  );
+}
+
+function ActivityCellRow({ kind, summary }: { kind: "sentence" | "word"; summary: ActivityPracticeSummary }) {
+  const done = summary.status !== "none";
+  const perfect = summary.score === 100;
+  const Icon = kind === "sentence" ? Flag : BookOpen;
+  return (
+    <span className={`activity-cell-row ${kind} ${done ? "done" : "none"} ${perfect ? "perfect" : ""}`}>
+      <Icon size={13} className="activity-cell-icon" />
+      <span className="activity-cell-score">{done ? (summary.score === null ? "已练" : summary.score) : "--"}</span>
+      {perfect ? <Sparkles size={12} className="activity-cell-star" /> : null}
+    </span>
+  );
 }
 
 function WalletScreen({ onBack }: { onBack: () => void }) {
@@ -3962,6 +4215,58 @@ function pageNumbers(page: number, pageCount: number): Array<number | "…"> {
   return result;
 }
 
+function currentShanghaiYear(): number {
+  return Number(new Intl.DateTimeFormat("en", { timeZone: DISPLAY_TIME_ZONE, year: "numeric" }).format(new Date()));
+}
+
+function groupActivityMonths(days: ActivityCalendarDay[]): Array<{ key: string; label: string; days: ActivityCalendarDay[] }> {
+  const groups = new Map<string, ActivityCalendarDay[]>();
+  for (const day of days) {
+    const key = day.date.slice(0, 7);
+    groups.set(key, [...(groups.get(key) || []), day]);
+  }
+  return [...groups.entries()].map(([key, monthDays]) => ({
+    key,
+    label: `${Number(key.slice(5, 7))} 月`,
+    days: monthDays
+  }));
+}
+
+function selectActivityDate(data: ActivityCalendarData, current: string): string {
+  if (current && data.days.some((day) => day.date === current)) return current;
+  if (data.today.startsWith(String(data.year))) return data.today;
+  for (let index = data.days.length - 1; index >= 0; index -= 1) {
+    if (data.days[index].completed) return data.days[index].date;
+  }
+  return data.days[0]?.date || "";
+}
+
+function activityDayLevel(day: ActivityCalendarDay): "none" | "partial" | "full" {
+  const sentenceDone = day.sentence.status !== "none";
+  const wordDone = day.word.status !== "none";
+  if (sentenceDone && wordDone) return "full";
+  if (sentenceDone || wordDone) return "partial";
+  return "none";
+}
+
+function activityDayTitle(day: ActivityCalendarDay): string {
+  const parts = [formatActivityDate(day.date), day.sentence.label, day.word.label];
+  if (day.events.length) parts.push(day.events.map((event) => `${event.time || ""} ${event.label} ${event.detail}`.trim()).join("；"));
+  return parts.join(" · ");
+}
+
+function formatActivityDate(date: string): string {
+  const parsed = new Date(`${date}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return date;
+  return parsed.toLocaleDateString("zh-CN", {
+    timeZone: "UTC",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "long"
+  });
+}
+
 class ApiError extends Error {
   status: number;
 
@@ -4011,11 +4316,20 @@ function signedYuan(cents: number): string {
   return cents >= 0 ? `+${formatYuan(cents)}` : formatYuan(cents);
 }
 
+const DISPLAY_TIME_ZONE = "Asia/Shanghai";
+const SQLITE_TIMESTAMP_RE = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+
+function parseServerDate(value: string): Date {
+  const normalized = SQLITE_TIMESTAMP_RE.test(value) ? `${value.replace(" ", "T")}Z` : value;
+  return new Date(normalized);
+}
+
 function formatDate(value: string): string {
   if (!value) return "";
-  const date = new Date(value);
+  const date = parseServerDate(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString("zh-CN", {
+    timeZone: DISPLAY_TIME_ZONE,
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
