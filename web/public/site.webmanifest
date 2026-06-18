@@ -1,0 +1,19 @@
+{
+  "name": "中译英每日闯关",
+  "short_name": "每日闯关",
+  "icons": [
+    {
+      "src": "zened-c2e-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "zened-c2e-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#54c76f",
+  "background_color": "#fff7e8",
+  "display": "standalone"
+}
