@@ -150,6 +150,21 @@ test("unfinished word level sessions resume at the next incomplete phase", () =>
   );
 });
 
+test("stale word level sessions are not resumed when the level word list changes", () => {
+  const database = makeDatabase();
+  const oldWords = [word("ability"), word("able")];
+  const newWords = [word("ability"), word("about")];
+  const first = database.startOrResumeWordSession(oldWords, "shanghai-zhongkao", "level", "a-1", 80);
+  submit(database, { sessionId: first.sessionId, wordId: "ability", phase: "word", score: 90 });
+
+  const restarted = database.startOrResumeWordSession(newWords, "shanghai-zhongkao", "level", "a-1", 80);
+
+  assert.notEqual(restarted.sessionId, first.sessionId);
+  assert.equal(restarted.resumed, false);
+  assert.equal(database.getWordSession(first.sessionId).status, "stale");
+  assert.deepEqual(database.getWordSessionWordIds(restarted.sessionId), ["ability", "about"]);
+});
+
 test("starting and leaving a mastered word level does not count as a completed attempt", () => {
   const database = makeDatabase();
   const words = [word("ability"), word("able")];

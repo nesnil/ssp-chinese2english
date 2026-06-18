@@ -1304,6 +1304,11 @@ export class AppDatabase {
       )
       .get(scopeTag, mode, levelId, scopeTag, mode, levelId) as WordSessionRow | undefined;
 
+    if (active && !this.wordSessionMatchesWords(active.id, words)) {
+      this.markWordSessionStale(active.id);
+      active = undefined;
+    }
+
     if (!active && levelId) {
       const legacy = this.findLegacyWordLevelSession(scopeTag, mode, words);
       if (legacy) {
@@ -1333,6 +1338,16 @@ export class AppDatabase {
       resumed: false,
       resume: null
     };
+  }
+
+  private wordSessionMatchesWords(sessionId: number, words: WordEntry[]): boolean {
+    const existingWordIds = this.getWordSessionWordIds(sessionId);
+    if (existingWordIds.length !== words.length) return false;
+    return existingWordIds.every((wordId, index) => wordId === words[index]?.id);
+  }
+
+  private markWordSessionStale(sessionId: number) {
+    this.db.prepare("UPDATE word_sessions SET status = 'stale' WHERE id = ? AND status = 'in_progress'").run(sessionId);
   }
 
   private findLegacyWordLevelSession(scopeTag: string, mode: string, words: WordEntry[]): WordSessionRow | null {
