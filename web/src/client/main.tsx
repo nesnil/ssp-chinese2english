@@ -621,6 +621,11 @@ function Dashboard({
   const submitted = progress?.submittedQuestions || 0;
   const percent = (submitted / total) * 100;
   const percentLabel = percent > 0 && percent < 1 ? `${percent.toFixed(1)}%` : `${Math.round(percent)}%`;
+  const regularSeasonCount = seasons.filter((season) => String(season.season) !== "5").length;
+  const hasSupplementSeason = seasons.some((season) => String(season.season) === "5");
+  const seasonSummary = hasSupplementSeason ? `${regularSeasonCount} 季 + 补充题` : `${seasons.length} 季`;
+  const totalDays = seasons.reduce((sum, season) => sum + season.dayCount, 0);
+  const totalQuestions = seasons.reduce((sum, season) => sum + season.questionCount, 0);
 
   return (
     <>
@@ -670,7 +675,7 @@ function Dashboard({
       <section className="map-section">
         <div className="section-title">
           <h2>闯关地图</h2>
-          <span>4 季 · 224 天 · 1115 题</span>
+          <span>{seasonSummary} · {totalDays} 天 · {totalQuestions} 题</span>
         </div>
         <div className="season-stack">
           {seasons.map((season) => (
@@ -813,7 +818,7 @@ function SeasonMap({ season, onStartDay }: { season: SeasonCatalog; onStartDay: 
   return (
     <article className="season-map">
       <div className="season-header">
-        <h3>第 {season.season} 季</h3>
+        <h3>{questionSeasonMapTitle(season.season)}</h3>
         <span>
           {season.dayCount} 天 · {season.questionCount} 题
         </span>
@@ -826,7 +831,7 @@ function SeasonMap({ season, onStartDay }: { season: SeasonCatalog; onStartDay: 
               key={day.day}
               className={`day-node ${status}`}
               onClick={() => onStartDay({ season: season.season, day: day.day })}
-              title={`S${season.season} Day ${day.day}`}
+              title={`${questionSeasonLabel(season.season)} Day ${day.day}`}
             >
               {day.latestAverageScore !== null ? <em>{day.latestAverageScore}</em> : null}
               <span>{day.completed ? <Check size={18} /> : day.day}</span>
@@ -913,7 +918,7 @@ function PracticeScreen({ season, day, onBack }: { season: number; day: number; 
           返回地图
         </button>
         <div>
-          <strong>S{season} Day {day}</strong>
+          <strong>{questionSeasonLabel(season)} Day {day}</strong>
           <span>{Math.min(current + 1, questions.length)}/{questions.length || 0}</span>
         </div>
       </header>
@@ -983,7 +988,7 @@ function walletTxCaption(tx: WalletTx): string {
   if (tx.type === "withdraw") return tx.status === "paid" ? "已发放" : "待发放";
   if (!tx.refId) return "";
   const match = tx.refId.match(/^S(\d+)-D(\d+)-Q(\d+)$/);
-  if (match) return `S${match[1]} Day ${match[2]} 第 ${match[3]} 题`;
+  if (match) return `${questionSeasonLabel(match[1])} Day ${match[2]} 第 ${match[3]} 题`;
   if (tx.source === "word") return tx.refId.endsWith(":example") ? "单词练习 · 例句" : "单词练习 · 默写";
   return "";
 }
@@ -1412,7 +1417,7 @@ function ReviewCenter({ onBack, onStartPractice }: { onBack: () => void; onStart
                         onClick={() => setExpandedQuestion(expanded ? null : question.id)}
                       >
                         <div className="history-card-top">
-                          <span>S{question.season} Day {question.day} · 第 {question.questionNo} 题</span>
+                          <span>{questionSeasonLabel(question.season)} Day {question.day} · 第 {question.questionNo} 题</span>
                           <b>{question.latestReviewMastered ? "已掌握" : "继续练"}</b>
                           {question.currentlyNeedsReview ? <em>当前需复习</em> : null}
                         </div>
@@ -1448,7 +1453,7 @@ function ReviewCenter({ onBack, onStartPractice }: { onBack: () => void; onStart
                   history.records.map((record, index) => (
                     <article key={`${record.questionNo}-${record.submittedAt}-${index}`} className={`history-card ${record.mastered ? "mastered" : "review"}`}>
                       <div className="history-card-top">
-                        <span>S{record.season} Day {record.day} · 第 {record.questionNo} 题</span>
+                        <span>{questionSeasonLabel(record.season)} Day {record.day} · 第 {record.questionNo} 题</span>
                         <b>{record.mastered ? "已掌握" : "继续练"}</b>
                       </div>
                       <p className="history-question">{record.chinese}</p>
@@ -1617,7 +1622,7 @@ function ReviewScreen({ onBack }: { onBack: () => void }) {
       ) : question ? (
         <section className="question-card">
           <div className="question-topline">
-            <span>S{question.season} Day {question.day} · 第 {question.questionNo} 题</span>
+            <span>{questionSeasonLabel(question.season)} Day {question.day} · 第 {question.questionNo} 题</span>
             <b>{question.prompt}</b>
           </div>
           <div className="review-hint">
@@ -2255,6 +2260,26 @@ type AdminQuestion = {
   referenceAnswer: string;
 };
 
+const ADMIN_QUESTION_SEASON_OPTIONS = [
+  { value: "1", label: "Season 1" },
+  { value: "2", label: "Season 2" },
+  { value: "3", label: "Season 3" },
+  { value: "4", label: "Season 4" },
+  { value: "5", label: "补充题" }
+];
+const ADMIN_QUESTION_DAY_OPTIONS = Array.from({ length: 10 }, (_, index) => String(index + 1));
+const ADMIN_QUESTION_NO_OPTIONS = Array.from({ length: 10 }, (_, index) => String(index + 1));
+
+function questionSeasonLabel(season: number | string): string {
+  const value = String(season);
+  return ADMIN_QUESTION_SEASON_OPTIONS.find((option) => option.value === value)?.label || `Season ${value}`;
+}
+
+function questionSeasonMapTitle(season: number | string): string {
+  const value = String(season);
+  return value === "5" ? "补充题" : `第 ${value} 季`;
+}
+
 function AdminRangeSetting({
   title,
   description,
@@ -2774,7 +2799,7 @@ function AdminQuestions() {
           <option value="">全部 Season</option>
           {meta.map((s) => (
             <option key={s.season} value={s.season}>
-              Season {s.season}（{s.questionCount}）
+              {questionSeasonLabel(s.season)}（{s.questionCount}）
             </option>
           ))}
         </select>
@@ -2804,7 +2829,7 @@ function AdminQuestions() {
         {items.map((item) => (
           <article key={item.id} className="admin-row">
             <div className="admin-row-main">
-              <span className="admin-tag">{`Season ${item.season} · Day ${item.day} · Question ${item.questionNo}`}</span>
+              <span className="admin-tag">{`${questionSeasonLabel(item.season)} · Day ${item.day} · Question ${item.questionNo}`}</span>
               <p className="admin-cn">{item.chinese}</p>
               {item.prompt ? <p className="admin-sub">提示词：{item.prompt}</p> : null}
               <p className="admin-ans">参考：{item.referenceAnswer}</p>
@@ -2903,40 +2928,61 @@ function AdminQuestionForm({
   }
 
   return (
-    <AdminModal title={isNew ? "新建题目" : `编辑 ${question.id}`} onClose={onClose}>
-      <form className="admin-form" onSubmit={submit}>
+    <AdminModal className="admin-question-modal" title={isNew ? "新建题目" : `编辑 ${question.id}`} onClose={onClose}>
+      <form className="admin-form admin-question-form" onSubmit={submit}>
         {isNew ? (
           <div className="admin-form-grid">
             <label>
               Season
-              <input type="number" value={season} onChange={(e) => setSeason(e.target.value)} required />
+              <select value={season} onChange={(e) => setSeason(e.target.value)} required>
+                <option value="" disabled>选择 Season</option>
+                {ADMIN_QUESTION_SEASON_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </label>
             <label>
               Day
-              <input type="number" value={day} onChange={(e) => setDay(e.target.value)} required />
+              <select value={day} onChange={(e) => setDay(e.target.value)} required>
+                <option value="" disabled>选择 Day</option>
+                {ADMIN_QUESTION_DAY_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    Day {option}
+                  </option>
+                ))}
+              </select>
             </label>
             <label>
-              题号
-              <input type="number" value={questionNo} onChange={(e) => setQuestionNo(e.target.value)} required />
+              Question
+              <select value={questionNo} onChange={(e) => setQuestionNo(e.target.value)} required>
+                <option value="" disabled>选择 Question</option>
+                {ADMIN_QUESTION_NO_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    Question {option}
+                  </option>
+                ))}
+              </select>
             </label>
           </div>
         ) : (
           <div className="admin-meta-row">
             <div className="admin-meta-item">
               <span className="admin-meta-label">Season</span>
-              <span className="admin-meta-value">{season}</span>
+              <span className="admin-meta-value">{questionSeasonLabel(season)}</span>
             </div>
             <div className="admin-meta-item">
               <span className="admin-meta-label">Day</span>
               <span className="admin-meta-value">{day}</span>
             </div>
             <div className="admin-meta-item">
-              <span className="admin-meta-label">题号</span>
+              <span className="admin-meta-label">Question</span>
               <span className="admin-meta-value">{questionNo}</span>
             </div>
           </div>
         )}
-        {!isNew ? <p className="admin-hint">Season / Day / 题号决定题目 ID，不可修改；如需调整请删除后重建。</p> : null}
+        {!isNew ? <p className="admin-hint">Season / Day / Question 决定题目 ID，不可修改；如需调整请删除后重建。</p> : null}
         <label>
           中文题目
           <textarea value={chinese} onChange={(e) => setChinese(e.target.value)} rows={2} required />
@@ -4137,10 +4183,20 @@ function AdminDeleteConfirm({
   );
 }
 
-function AdminModal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+function AdminModal({
+  title,
+  onClose,
+  children,
+  className = ""
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
     <div className="admin-modal-backdrop" onClick={onClose}>
-      <div className="admin-modal" onClick={(event) => event.stopPropagation()}>
+      <div className={`admin-modal ${className}`.trim()} onClick={(event) => event.stopPropagation()}>
         <div className="admin-modal-head">
           <h2>{title}</h2>
           <button className="icon-button" onClick={onClose} title="关闭">

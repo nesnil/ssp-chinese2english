@@ -2756,16 +2756,39 @@ button.history-card {
   box-shadow: 0 24px 60px rgba(36, 48, 71, 0.28);
 }
 
+.admin-modal.admin-question-modal {
+  width: min(680px, 100%);
+}
+
 .admin-modal-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e9eef6;
 }
 
 .admin-modal-head h2 {
   margin: 0;
   font-size: 20px;
+  line-height: 1.25;
+  min-width: 0;
+}
+
+.admin-modal-head .icon-button {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: #f5f8fd;
+  box-shadow: none;
+  flex-shrink: 0;
+}
+
+.admin-modal-head .icon-button:active {
+  transform: none;
+  box-shadow: none;
 }
 
 .admin-form {
@@ -2811,6 +2834,31 @@ button.history-card {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   gap: 10px;
+}
+
+.admin-question-form {
+  gap: 16px;
+}
+
+.admin-question-form .admin-form-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-question-form .admin-form-grid label {
+  min-width: 0;
+}
+
+.admin-question-form input,
+.admin-question-form textarea,
+.admin-question-form select {
+  width: 100%;
+}
+
+.admin-question-form textarea {
+  min-height: 92px;
+  resize: vertical;
+  line-height: 1.55;
 }
 
 .admin-meta-row {
@@ -2912,11 +2960,35 @@ button.history-card {
   justify-content: flex-end;
   flex-wrap: wrap;
   gap: 12px;
+  padding-top: 4px;
 }
 
 @media (max-width: 560px) {
+  .admin-modal-backdrop {
+    padding: 18px 10px;
+  }
+
+  .admin-modal {
+    border-radius: 20px;
+    padding: 18px;
+  }
+
   .admin-form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .admin-question-form .admin-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-question-form .admin-form-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .admin-question-form .admin-form-actions .link-button,
+  .admin-question-form .admin-form-actions .primary-button {
+    width: 100%;
   }
 
   .admin-repeat-row {
