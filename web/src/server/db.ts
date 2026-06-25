@@ -205,6 +205,7 @@ export type ActivityPracticeSummary = {
 
 export type ActivityCalendarEvent = {
   type: "sentence" | "word";
+  practiceKind?: WordPracticeKind;
   label: string;
   detail: string;
   score: number | null;
@@ -216,6 +217,9 @@ export type ActivityCalendarDay = {
   date: string;
   completed: boolean;
   sentence: ActivityPracticeSummary;
+  juniorWord: ActivityPracticeSummary;
+  seniorWord: ActivityPracticeSummary;
+  /** Backward-compatible aggregate for all vocabulary practice. Prefer juniorWord/seniorWord in new clients. */
   word: ActivityPracticeSummary;
   events: ActivityCalendarEvent[];
 };
@@ -1759,6 +1763,8 @@ export class AppDatabase {
         date,
         completed: false,
         sentence: emptyActivitySummary("中译英未做"),
+        juniorWord: emptyActivitySummary("中考词汇未练"),
+        seniorWord: emptyActivitySummary("高考词汇未练"),
         word: emptyActivitySummary("单词未练"),
         events: []
       });
@@ -1922,19 +1928,22 @@ export class AppDatabase {
     for (const row of wordCompletions) {
       const day = days.get(row.activity_date);
       if (!day) continue;
-      const count = (wordCompletionCounts.get(row.activity_date) || 0) + 1;
-      wordCompletionCounts.set(row.activity_date, count);
+      const summaryKey = wordSummaryKey(row.practice_kind);
+      const countKey = `${row.activity_date}:${row.practice_kind}`;
+      const count = (wordCompletionCounts.get(countKey) || 0) + 1;
+      wordCompletionCounts.set(countKey, count);
       const label = wordPracticeLabel(row.practice_kind);
       day.completed = true;
-      day.word = {
+      day[summaryKey] = {
         status: "complete",
-        label: count > 1 ? `词汇完成 ${count} 次` : `${label}完成`,
+        label: count > 1 ? `${label}完成 ${count} 次` : `${label}完成`,
         score: row.average_score,
         count,
         time: shanghaiTime(row.completed_at)
       };
       day.events.push({
         type: "word",
+        practiceKind: row.practice_kind,
         label,
         detail: `${wordSessionLabel(row.mode, row.level_id)} · ${row.word_count} 词 · ${scoreText(row.average_score)}`,
         score: row.average_score,
@@ -1947,9 +1956,10 @@ export class AppDatabase {
       const day = days.get(row.activity_date);
       if (!day) continue;
       day.completed = true;
-      if (day.word.status === "none") {
+      const summaryKey = wordSummaryKey(row.practice_kind);
+      if (day[summaryKey].status === "none") {
         const label = wordPracticeLabel(row.practice_kind);
-        day.word = {
+        day[summaryKey] = {
           status: "partial",
           label: `${label} ${row.word_count} 个`,
           score: row.average_score,
@@ -1958,6 +1968,7 @@ export class AppDatabase {
         };
         day.events.push({
           type: "word",
+          practiceKind: row.practice_kind,
           label,
           detail: `已练 ${row.word_count} 个词 · 均分 ${scoreText(row.average_score)}`,
           score: row.average_score,
@@ -1968,6 +1979,7 @@ export class AppDatabase {
     }
 
     for (const day of days.values()) {
+      day.word = combineWordActivitySummary(day.juniorWord, day.seniorWord);
       day.events.sort((a, b) => String(a.occurredAt || "").localeCompare(String(b.occurredAt || "")));
     }
 
@@ -2370,6 +2382,28 @@ function wordSessionLabel(mode: string, levelId: string | null): string {
 
 function wordPracticeLabel(practiceKind: WordPracticeKind): string {
   return practiceKind === "senior" ? "高考词汇练习" : "中考词汇练习";
+}
+
+function wordSummaryKey(practiceKind: WordPracticeKind): "juniorWord" | "seniorWord" {
+  return practiceKind === "senior" ? "seniorWord" : "juniorWord";
+}
+
+function combineWordActivitySummary(juniorWord: ActivityPracticeSummary, seniorWord: ActivityPracticeSummary): ActivityPracticeSummary {
+  const active = [juniorWord, seniorWord].filter((summary) => summary.status !== "none");
+  if (active.length === 0) return emptyActivitySummary("单词未练");
+  if (active.length === 1) return active[0];
+  const scores = active.map((summary) => summary.score).filter((score): score is number => score !== null);
+  const completeCount = active.filter((summary) => summary.status === "complete").length;
+  return {
+    status: completeCount === active.length ? "complete" : "partial",
+    label: completeCount === active.length ? "词汇完成 2 项" : "词汇已练 2 项",
+    score: scores.length ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length) : null,
+    count: active.reduce((sum, summary) => sum + summary.count, 0),
+    time: active.reduce<string | null>((latest, summary) => {
+      if (!summary.time) return latest;
+      return !latest || summary.time > latest ? summary.time : latest;
+    }, null)
+  };
 }
 
 function activityAnchorDate(year: number, today: string): string | null {

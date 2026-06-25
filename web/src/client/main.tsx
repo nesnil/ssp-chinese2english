@@ -14,6 +14,7 @@ import {
   Coins,
   Flag,
   Flame,
+  GraduationCap,
   History,
   Heart,
   ListChecks,
@@ -96,6 +97,7 @@ type ActivityPracticeSummary = {
 
 type ActivityCalendarEvent = {
   type: "sentence" | "word";
+  practiceKind?: WordPracticeProfile;
   label: string;
   detail: string;
   score: number | null;
@@ -107,6 +109,8 @@ type ActivityCalendarDay = {
   date: string;
   completed: boolean;
   sentence: ActivityPracticeSummary;
+  juniorWord: ActivityPracticeSummary;
+  seniorWord: ActivityPracticeSummary;
   word: ActivityPracticeSummary;
   events: ActivityCalendarEvent[];
 };
@@ -1142,12 +1146,13 @@ function ActivityCalendarScreen({ onBack }: { onBack: () => void }) {
                   <h1>{selectedDay.completed ? "这天练过啦" : "这天还没有练习"}</h1>
                   <div className="activity-detail-tags">
                     <span className={selectedDay.sentence.status}>{selectedDay.sentence.label}</span>
-                    <span className={selectedDay.word.status}>{selectedDay.word.label}</span>
+                    <span className={selectedDay.juniorWord.status}>{selectedDay.juniorWord.label}</span>
+                    <span className={selectedDay.seniorWord.status}>{selectedDay.seniorWord.label}</span>
                   </div>
                   <div className="activity-event-list">
                     {selectedDay.events.length ? (
                       selectedDay.events.map((event, index) => (
-                        <article key={`${event.type}-${event.occurredAt || index}`} className={`activity-event ${event.type}`}>
+                        <article key={`${event.type}-${event.practiceKind || "sentence"}-${event.occurredAt || index}`} className={activityEventClass(event)}>
                           <span>{event.type === "sentence" ? <Flag size={18} /> : <BookOpen size={18} />}</span>
                           <div>
                             <strong>{event.label}</strong>
@@ -1196,7 +1201,7 @@ function ActivityCalendarScreen({ onBack }: { onBack: () => void }) {
                     今天
                   </button>
                 </div>
-                <span className="activity-calendar-legend">蓝色为全部完成，黄色为做了一项，灰色为未练</span>
+                <span className="activity-calendar-legend">蓝色为三项都有记录，黄色为有练习，灰色为未练</span>
               </div>
               <div className="activity-months">
                 {months.map((month) => (
@@ -1215,8 +1220,9 @@ function ActivityCalendarScreen({ onBack }: { onBack: () => void }) {
                         >
                           <b>{Number(day.date.slice(8, 10))}</b>
                           <div className="activity-day-rows">
-                            <ActivityCellRow kind="sentence" summary={day.sentence} />
-                            <ActivityCellRow kind="word" summary={day.word} />
+                            <ActivityCellRow kind="sentence" label="翻译" summary={day.sentence} />
+                            <ActivityCellRow kind="juniorWord" label="中词" summary={day.juniorWord} />
+                            <ActivityCellRow kind="seniorWord" label="高词" summary={day.seniorWord} />
                           </div>
                         </button>
                       ))}
@@ -1232,14 +1238,27 @@ function ActivityCalendarScreen({ onBack }: { onBack: () => void }) {
   );
 }
 
-function ActivityCellRow({ kind, summary }: { kind: "sentence" | "word"; summary: ActivityPracticeSummary }) {
+function ActivityCellRow({
+  kind,
+  label,
+  summary
+}: {
+  kind: "sentence" | "juniorWord" | "seniorWord";
+  label: string;
+  summary: ActivityPracticeSummary;
+}) {
   const done = summary.status !== "none";
   const perfect = summary.score === 100;
-  const Icon = kind === "sentence" ? Flag : BookOpen;
+  const Icon = kind === "sentence" ? Flag : kind === "seniorWord" ? GraduationCap : BookOpen;
+  const scoreLabel = done ? (summary.score === null ? "已练" : String(summary.score)) : "--";
   return (
-    <span className={`activity-cell-row ${kind} ${done ? "done" : "none"} ${perfect ? "perfect" : ""}`}>
-      <Icon size={13} className="activity-cell-icon" />
-      <span className="activity-cell-score">{done ? (summary.score === null ? "已练" : summary.score) : "--"}</span>
+    <span
+      className={`activity-cell-row ${kind} ${done ? "done" : "none"} ${perfect ? "perfect" : ""}`}
+      title={`${label}：${summary.label}`}
+      aria-label={`${label}：${summary.label}`}
+    >
+      <Icon size={12} className="activity-cell-icon" />
+      <span className="activity-cell-score">{scoreLabel}</span>
       {perfect ? <Sparkles size={12} className="activity-cell-star" /> : null}
     </span>
   );
@@ -2496,9 +2515,16 @@ function AdminRangeSetting({
         </div>
         <div className="admin-range-values">
           <b className="high">
-            {highLabel} {highValue}
-            {mode === "score" ? " " : ""}
-            {unit}
+            {mode === "score" ? (
+              <>
+                达到 {highValue} {unit}奖励
+              </>
+            ) : (
+              <>
+                {highLabel} {highValue}
+                {unit}
+              </>
+            )}
           </b>
           <b className="low">
             {mode === "score" ? (
@@ -2594,8 +2620,8 @@ function AdminMoneyRangeSetting({
     <div className="admin-money-range-setting">
       <div className="admin-range-head">
         <div>
-          <strong>奖惩金额尺</strong>
-          <span>共用 1-10 元金额尺：上方设置奖励区间，下方设置低分扣除区间。</span>
+          <strong>奖惩金额设定</strong>
+          <span>设定奖惩金额随机区间。</span>
         </div>
         <div className="admin-range-values money-values">
           <b>
@@ -4136,12 +4162,20 @@ function AdminWallet() {
 
   return (
     <section className="admin-panel">
-      <div className="admin-settings-head">
+      <div className="admin-settings-head wallet-settings-head">
         <div>
-          <span className={`admin-status ${balanceCents >= 0 ? "ready" : "missing"}`}>余额 {formatYuan(balanceCents)}</span>
-          <h2>钱包奖励</h2>
+          <span className="admin-status ready">钱包设置</span>
+          <h2>奖励与扣钱规则</h2>
+          <p>设置中译英、词汇练习和高考词汇整组练习的钱包奖惩规则。</p>
         </div>
-        {updatedAt ? <small>更新于 {formatDate(updatedAt)}</small> : null}
+        <div className={`wallet-balance-card ${balanceCents < 0 ? "negative" : ""}`}>
+          <div className="wallet-balance-card-title">
+            <Wallet size={18} />
+            <span>当前余额</span>
+          </div>
+          <strong>{formatYuan(balanceCents)}</strong>
+          <small>{updatedAt ? `更新于 ${formatDate(updatedAt)}` : "用于奖励与提现"}</small>
+        </div>
       </div>
 
       {loading ? <LoadingScreen compact /> : null}
@@ -4166,8 +4200,8 @@ function AdminWallet() {
               onHighChange={(value) => setRewardScore(String(value))}
             />
             <AdminRangeSetting
-              title="高考词汇平均分线"
-              description="一组练完后按平均分结算；金额复用下方奖惩金额尺。"
+              title="高考词汇平均分奖惩线"
+              description="一组练完后按平均分结算。"
               min={0}
               max={100}
               low={Number(seniorPenaltyAverageBelow)}
@@ -4592,17 +4626,22 @@ function selectActivityDate(data: ActivityCalendarData, current: string): string
 }
 
 function activityDayLevel(day: ActivityCalendarDay): "none" | "partial" | "full" {
-  const sentenceDone = day.sentence.status !== "none";
-  const wordDone = day.word.status !== "none";
-  if (sentenceDone && wordDone) return "full";
-  if (sentenceDone || wordDone) return "partial";
+  const summaries = [day.sentence, day.juniorWord, day.seniorWord];
+  const doneCount = summaries.filter((summary) => summary.status !== "none").length;
+  if (doneCount === summaries.length) return "full";
+  if (doneCount > 0) return "partial";
   return "none";
 }
 
 function activityDayTitle(day: ActivityCalendarDay): string {
-  const parts = [formatActivityDate(day.date), day.sentence.label, day.word.label];
+  const parts = [formatActivityDate(day.date), day.sentence.label, day.juniorWord.label, day.seniorWord.label];
   if (day.events.length) parts.push(day.events.map((event) => `${event.time || ""} ${event.label} ${event.detail}`.trim()).join("；"));
   return parts.join(" · ");
+}
+
+function activityEventClass(event: ActivityCalendarEvent): string {
+  if (event.type === "sentence") return "activity-event sentence";
+  return `activity-event word ${event.practiceKind === "senior" ? "senior-word" : "junior-word"}`;
 }
 
 function formatActivityDate(date: string): string {

@@ -797,13 +797,13 @@ button {
 
 .activity-day-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
   gap: 10px;
 }
 
 .activity-day {
   position: relative;
-  min-height: 84px;
+  min-height: 94px;
   display: grid;
   align-content: start;
   gap: 4px;
@@ -856,14 +856,15 @@ button {
 
 .activity-day-rows {
   display: grid;
-  gap: 5px;
-  margin-top: 3px;
+  gap: 4px;
+  margin-top: 4px;
 }
 
 .activity-cell-row {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
+  min-width: 0;
   font-size: 13px;
   font-weight: 1000;
   line-height: 1;
@@ -875,6 +876,7 @@ button {
 
 .activity-cell-score {
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 /* 未练:整行变淡 */
@@ -887,13 +889,17 @@ button {
   color: #8b98ad;
 }
 
-/* 做过:翻译用蓝、单词用绿 */
+/* 做过:翻译用蓝，中考词汇用绿，高考词汇用紫 */
 .activity-cell-row.done.sentence .activity-cell-icon {
   color: #2a7de1;
 }
 
-.activity-cell-row.done.word .activity-cell-icon {
+.activity-cell-row.done.juniorWord .activity-cell-icon {
   color: #2faa52;
+}
+
+.activity-cell-row.done.seniorWord .activity-cell-icon {
+  color: #8b5cf6;
 }
 
 .activity-cell-row.done .activity-cell-score {
@@ -1019,6 +1025,10 @@ button {
 
 .activity-event.word > span {
   background: #35c85a;
+}
+
+.activity-event.senior-word > span {
+  background: #8b5cf6;
 }
 
 .activity-event strong {
@@ -2406,12 +2416,12 @@ button.history-card {
   }
 
   .activity-day-grid {
-    grid-template-columns: repeat(auto-fill, minmax(74px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
     gap: 8px;
   }
 
   .activity-day {
-    min-height: 88px;
+    min-height: 96px;
     border-radius: 18px;
     padding: 9px 7px 7px;
   }
@@ -2537,10 +2547,68 @@ button.history-card {
   font-size: 22px;
 }
 
+.admin-settings-head p {
+  margin: 8px 0 0;
+  color: #65748f;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
 .admin-settings-head small {
   color: #7c8aa3;
   font-weight: 800;
   text-align: right;
+}
+
+.wallet-settings-head {
+  align-items: center;
+  background: linear-gradient(90deg, #ffffff, #f8fbff);
+}
+
+.wallet-balance-card {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  min-width: 190px;
+  padding: 18px 20px;
+  border-radius: 24px;
+  color: #6f3d00;
+  background: linear-gradient(135deg, #ffe873 0%, #ffb044 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+.wallet-balance-card.negative {
+  color: #7e3c11;
+  background: linear-gradient(135deg, #ffe1a6 0%, #ff9f43 100%);
+}
+
+.wallet-balance-card-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 1000;
+}
+
+.wallet-balance-card-title svg {
+  stroke-width: 3;
+}
+
+.wallet-balance-card span {
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.wallet-balance-card strong {
+  font-size: 34px;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.wallet-balance-card small {
+  color: inherit;
+  opacity: 0.82;
+  font-size: 12px;
+  font-weight: 1000;
 }
 
 .admin-status {
@@ -3919,6 +3987,15 @@ button.history-card {
   .wallet-chip {
     padding: 0 12px;
     font-size: 14px;
+  }
+
+  .wallet-settings-head {
+    align-items: stretch;
+  }
+
+  .wallet-balance-card {
+    justify-items: start;
+    min-width: 0;
   }
 
   .senior-summary-hero {

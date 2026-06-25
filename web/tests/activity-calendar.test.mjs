@@ -140,6 +140,9 @@ test("activity calendar reports completed, partial and missing practice states",
   assert.equal(jan5.sentence.score, 92);
   assert.equal(jan5.word.status, "complete");
   assert.equal(jan5.word.label, "中考词汇练习完成");
+  assert.equal(jan5.juniorWord.status, "complete");
+  assert.equal(jan5.juniorWord.label, "中考词汇练习完成");
+  assert.equal(jan5.seniorWord.status, "none");
   assert.equal(jan5.word.score, 88);
   assert.equal(jan5.events.length, 2);
   assert.equal(jan5.events[1].label, "中考词汇练习");
@@ -150,10 +153,14 @@ test("activity calendar reports completed, partial and missing practice states",
   assert.equal(jan6.sentence.score, 75);
   assert.equal(jan6.word.status, "none");
   assert.equal(jan6.word.label, "单词未练");
+  assert.equal(jan6.juniorWord.label, "中考词汇未练");
+  assert.equal(jan6.seniorWord.label, "高考词汇未练");
 
   const jan7 = day(calendar, "2026-01-07");
   assert.equal(jan7.sentence.status, "none");
   assert.equal(jan7.word.status, "partial");
+  assert.equal(jan7.juniorWord.status, "partial");
+  assert.equal(jan7.seniorWord.status, "none");
   assert.equal(jan7.word.count, 1);
   assert.equal(calendar.summary.currentStreak, 3);
   assert.equal(calendar.summary.longestStreak, 3);
@@ -179,9 +186,45 @@ test("activity calendar labels senior word practice separately", () => {
   const calendar = database.getActivityCalendar(2026, "2026-01-09");
   const jan8 = day(calendar, "2026-01-08");
   assert.equal(jan8.word.label, "高考词汇练习完成");
+  assert.equal(jan8.seniorWord.label, "高考词汇练习完成");
+  assert.equal(jan8.juniorWord.status, "none");
   assert.equal(jan8.events[0].label, "高考词汇练习");
+  assert.equal(jan8.events[0].practiceKind, "senior");
 
   const jan9 = day(calendar, "2026-01-09");
   assert.equal(jan9.word.label, "高考词汇练习 1 个");
+  assert.equal(jan9.seniorWord.label, "高考词汇练习 1 个");
   assert.equal(jan9.events[0].label, "高考词汇练习");
+});
+
+test("activity calendar keeps junior and senior word practice separate on the same day", () => {
+  const database = makeDatabase();
+  insertCompletedWordSession(database, {
+    practiceKind: "junior",
+    wordCount: 5,
+    score: 88,
+    completedAt: "2026-01-10 10:00:00",
+    levelId: "a-1"
+  });
+  insertCompletedWordSession(database, {
+    practiceKind: "senior",
+    wordCount: 10,
+    score: 94,
+    completedAt: "2026-01-10 11:00:00",
+    levelId: "b-2"
+  });
+
+  const calendar = database.getActivityCalendar(2026, "2026-01-10");
+  const jan10 = day(calendar, "2026-01-10");
+  assert.equal(jan10.completed, true);
+  assert.equal(jan10.juniorWord.status, "complete");
+  assert.equal(jan10.juniorWord.score, 88);
+  assert.equal(jan10.seniorWord.status, "complete");
+  assert.equal(jan10.seniorWord.score, 94);
+  assert.equal(jan10.word.label, "词汇完成 2 项");
+  assert.equal(jan10.word.score, 91);
+  assert.deepEqual(
+    jan10.events.map((event) => `${event.practiceKind}:${event.label}:${event.score}`),
+    ["junior:中考词汇练习:88", "senior:高考词汇练习:94"]
+  );
 });
