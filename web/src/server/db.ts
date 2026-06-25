@@ -35,10 +35,12 @@ type DayAttemptRow = {
   completed_at: string | null;
 };
 
+export type WordPracticeKind = "junior" | "senior";
 type WordSubmissionPhase = "word" | "example";
 
 type WordSessionRow = {
   id: number;
+  practice_kind: WordPracticeKind;
   scope_tag: string;
   mode: string;
   level_id: string | null;
@@ -50,6 +52,7 @@ type WordSessionRow = {
 
 type WordSubmissionRow = {
   word_id: string;
+  practice_kind: WordPracticeKind;
   phase: WordSubmissionPhase;
   word_answer: string | null;
   meaning_answer_json: string;
@@ -62,6 +65,20 @@ type WordSubmissionRow = {
   improved_answer: string;
   reference_answer: string;
   needs_review: number;
+};
+
+export type WordSessionSummary = {
+  session: WordSessionRow;
+  items: Array<{
+    itemNo: number;
+    wordId: string;
+    score: number | null;
+    level: string | null;
+    errorSummary: string | null;
+  }>;
+  averageScore: number | null;
+  submittedCount: number;
+  errorCount: number;
 };
 
 export type ReviewSubmissionRow = SubmissionRow & {
@@ -218,7 +235,15 @@ export type ActivityCalendar = {
 
 type WalletSettleInput =
   | { source: "sentence"; questionId: string; submissionId: number; score: number; errorSummary?: string | null }
-  | { source: "word"; wordId: string; phase: WordSubmissionPhase; submissionId: number; score: number; errorSummary?: string | null };
+  | {
+      source: "word";
+      practiceKind?: WordPracticeKind;
+      wordId: string;
+      phase: WordSubmissionPhase;
+      submissionId: number;
+      score: number;
+      errorSummary?: string | null;
+    };
 
 type SeedQuestion = {
   id: string;
@@ -321,6 +346,7 @@ export class AppDatabase {
 
       CREATE TABLE IF NOT EXISTS word_sessions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        practice_kind TEXT NOT NULL DEFAULT 'junior',
         scope_tag TEXT NOT NULL,
         mode TEXT NOT NULL,
         level_id TEXT,
@@ -341,6 +367,7 @@ export class AppDatabase {
       CREATE TABLE IF NOT EXISTS word_submissions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         session_id INTEGER,
+        practice_kind TEXT NOT NULL DEFAULT 'junior',
         word_id TEXT NOT NULL,
         phase TEXT NOT NULL,
         word_answer TEXT,
@@ -431,11 +458,13 @@ export class AppDatabase {
     `);
     this.addColumnIfMissing("submissions", "attempt_id", "INTEGER");
     this.addColumnIfMissing("submissions", "mode", "TEXT NOT NULL DEFAULT 'day'");
+    this.addColumnIfMissing("word_sessions", "practice_kind", "TEXT NOT NULL DEFAULT 'junior'");
     this.addColumnIfMissing("word_sessions", "level_id", "TEXT");
     this.addColumnIfMissing("word_sessions", "average_score", "INTEGER");
+    this.addColumnIfMissing("word_submissions", "practice_kind", "TEXT NOT NULL DEFAULT 'junior'");
     this.addColumnIfMissing("app_sessions", "role", "TEXT NOT NULL DEFAULT 'user'");
     this.db.exec("CREATE INDEX IF NOT EXISTS idx_submissions_attempt ON submissions(attempt_id, mode, question_no);");
-    this.db.exec("CREATE INDEX IF NOT EXISTS idx_word_sessions_level ON word_sessions(scope_tag, mode, level_id, status, started_at DESC);");
+    this.db.exec("CREATE INDEX IF NOT EXISTS idx_word_sessions_level ON word_sessions(practice_kind, scope_tag, mode, level_id, status, started_at DESC);");
   }
 
   private addColumnIfMissing(table: string, column: string, definition: string) {
@@ -1236,38 +1265,43 @@ export class AppDatabase {
     return row.count;
   }
 
-  getWordBatchSize(): number {
-    const row = this.db.prepare("SELECT value FROM word_settings WHERE key = 'batch_size'").get() as { value: string } | undefined;
-    const parsed = row ? Number(row.value) : 5;
-    return clampWordBatchSize(parsed);
+  getWordBatchSize(practiceKind: WordPracticeKind = "junior"): number {
+    const key = wordBatchSizeKey(practiceKind);
+    const row = this.db.prepare("SELECT value FROM word_settings WHERE key = ?").get(key) as { value: string } | undefined;
+    const parsed = row ? Number(row.value) : defaultWordBatchSize(practiceKind);
+    return clampWordBatchSize(parsed, defaultWordBatchSize(practiceKind));
   }
 
-  setWordBatchSize(value: number): number {
-    const batchSize = clampWordBatchSize(value);
+  setWordBatchSize(value: number, practiceKind: WordPracticeKind = "junior"): number {
+    const key = wordBatchSizeKey(practiceKind);
+    const batchSize = clampWordBatchSize(value, defaultWordBatchSize(practiceKind));
     this.db
       .prepare(
         `
         INSERT INTO word_settings (key, value, updated_at)
-        VALUES ('batch_size', ?, CURRENT_TIMESTAMP)
+        VALUES (?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
       `
       )
-      .run(String(batchSize));
+      .run(key, String(batchSize));
     return batchSize;
   }
 
-  startWordSession(words: WordEntry[], scopeTag: string, mode: string, levelId: string | null = null) {
+  startWordSession(words: WordEntry[], scopeTag: string, mode: string, levelId: string | null = null, practiceKind: WordPracticeKind = "junior") {
     this.db.exec("BEGIN");
     try {
       const result = this.db
-        .prepare("INSERT INTO word_sessions (scope_tag, mode, level_id, word_count, status) VALUES (?, ?, ?, ?, 'in_progress')")
-        .run(scopeTag, mode, levelId, words.length);
+        .prepare(
+          "INSERT INTO word_sessions (practice_kind, scope_tag, mode, level_id, word_count, status) VALUES (?, ?, ?, ?, ?, 'in_progress')"
+        )
+        .run(practiceKind, scopeTag, mode, levelId, words.length);
       const sessionId = Number(result.lastInsertRowid);
       const insertItem = this.db.prepare("INSERT INTO word_session_items (session_id, word_id, item_no) VALUES (?, ?, ?)");
       words.forEach((word, index) => insertItem.run(sessionId, word.id, index + 1));
       this.db.exec("COMMIT");
       return {
         sessionId,
+        practiceKind,
         scopeTag,
         mode,
         levelId,
@@ -1280,20 +1314,29 @@ export class AppDatabase {
     }
   }
 
-  startOrResumeWordSession(words: WordEntry[], scopeTag: string, mode: string, levelId: string | null, threshold: number) {
+  startOrResumeWordSession(
+    words: WordEntry[],
+    scopeTag: string,
+    mode: string,
+    levelId: string | null,
+    threshold: number,
+    practiceKind: WordPracticeKind = "junior"
+  ) {
     let active = this.db
       .prepare(
         `
         SELECT *
         FROM word_sessions
-        WHERE scope_tag = ?
+        WHERE practice_kind = ?
+          AND scope_tag = ?
           AND mode = ?
           AND COALESCE(level_id, '') = COALESCE(?, '')
           AND status = 'in_progress'
           AND id > COALESCE((
             SELECT MAX(id)
             FROM word_sessions
-            WHERE scope_tag = ?
+            WHERE practice_kind = ?
+              AND scope_tag = ?
               AND mode = ?
               AND COALESCE(level_id, '') = COALESCE(?, '')
               AND status = 'completed'
@@ -1302,7 +1345,7 @@ export class AppDatabase {
         LIMIT 1
       `
       )
-      .get(scopeTag, mode, levelId, scopeTag, mode, levelId) as WordSessionRow | undefined;
+      .get(practiceKind, scopeTag, mode, levelId, practiceKind, scopeTag, mode, levelId) as WordSessionRow | undefined;
 
     if (active && !this.wordSessionMatchesWords(active.id, words)) {
       this.markWordSessionStale(active.id);
@@ -1310,7 +1353,7 @@ export class AppDatabase {
     }
 
     if (!active && levelId) {
-      const legacy = this.findLegacyWordLevelSession(scopeTag, mode, words);
+      const legacy = this.findLegacyWordLevelSession(scopeTag, mode, words, practiceKind);
       if (legacy) {
         this.db.prepare("UPDATE word_sessions SET level_id = ? WHERE id = ?").run(levelId, legacy.id);
         active = { ...legacy, level_id: levelId };
@@ -1322,6 +1365,7 @@ export class AppDatabase {
       if (!completed) {
         return {
           sessionId: active.id,
+          practiceKind,
           scopeTag,
           mode,
           levelId,
@@ -1334,7 +1378,7 @@ export class AppDatabase {
     }
 
     return {
-      ...this.startWordSession(words, scopeTag, mode, levelId),
+      ...this.startWordSession(words, scopeTag, mode, levelId, practiceKind),
       resumed: false,
       resume: null
     };
@@ -1350,20 +1394,21 @@ export class AppDatabase {
     this.db.prepare("UPDATE word_sessions SET status = 'stale' WHERE id = ? AND status = 'in_progress'").run(sessionId);
   }
 
-  private findLegacyWordLevelSession(scopeTag: string, mode: string, words: WordEntry[]): WordSessionRow | null {
+  private findLegacyWordLevelSession(scopeTag: string, mode: string, words: WordEntry[], practiceKind: WordPracticeKind): WordSessionRow | null {
     const rows = this.db
       .prepare(
         `
         SELECT *
         FROM word_sessions
-        WHERE scope_tag = ?
+        WHERE practice_kind = ?
+          AND scope_tag = ?
           AND mode = ?
           AND level_id IS NULL
           AND status = 'in_progress'
         ORDER BY id DESC
       `
       )
-      .all(scopeTag, mode) as WordSessionRow[];
+      .all(practiceKind, scopeTag, mode) as WordSessionRow[];
     const targetWordIds = words.map((word) => word.id).join("\u001f");
     for (const row of rows) {
       if (this.getWordSessionWordIds(row.id).join("\u001f") === targetWordIds) return row;
@@ -1383,6 +1428,8 @@ export class AppDatabase {
   }
 
   getWordSessionResume(sessionId: number, threshold: number) {
+    const session = this.getWordSession(sessionId);
+    const practiceKind = normalizePracticeKind(session?.practice_kind);
     const items = this.db
       .prepare("SELECT word_id, item_no FROM word_session_items WHERE session_id = ? ORDER BY item_no")
       .all(sessionId) as Array<{ word_id: string; item_no: number }>;
@@ -1391,6 +1438,7 @@ export class AppDatabase {
       const phases = latestRows.get(item.word_id);
       const wordRow = phases?.get("word");
       if (!wordRow) return { itemNo: item.item_no, phase: "word" as const };
+      if (practiceKind === "senior") continue;
       if (wordRow.score >= threshold) {
         const exampleRow = phases?.get("example");
         if (!exampleRow) {
@@ -1413,7 +1461,7 @@ export class AppDatabase {
         `
         SELECT
           ws.word_id, ws.phase, ws.word_answer, ws.meaning_answer_json, ws.answer, ws.score, ws.level,
-          ws.encouragement, ws.issues_json, ws.suggestion, ws.improved_answer, ws.reference_answer, ws.needs_review
+          ws.practice_kind, ws.encouragement, ws.issues_json, ws.suggestion, ws.improved_answer, ws.reference_answer, ws.needs_review
         FROM word_submissions ws
         INNER JOIN (
           SELECT word_id, phase, MAX(id) AS id
@@ -1435,6 +1483,7 @@ export class AppDatabase {
 
   saveWordSubmission(input: {
     sessionId: number | null;
+    practiceKind?: WordPracticeKind;
     wordId: string;
     phase: WordSubmissionPhase;
     wordAnswer?: string | null;
@@ -1442,17 +1491,19 @@ export class AppDatabase {
     answer: string;
     grade: GradeResult;
   }): number {
+    const practiceKind = input.practiceKind || (input.sessionId ? normalizePracticeKind(this.getWordSession(input.sessionId)?.practice_kind) : "junior");
     const result = this.db
       .prepare(`
         INSERT INTO word_submissions (
-          session_id, word_id, phase, word_answer, meaning_answer_json, answer, score, level,
+          session_id, practice_kind, word_id, phase, word_answer, meaning_answer_json, answer, score, level,
           encouragement, issues_json, suggestion, improved_answer, reference_answer, needs_review,
           raw_ai, error_summary
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       .run(
         input.sessionId,
+        practiceKind,
         input.wordId,
         input.phase,
         input.wordAnswer || null,
@@ -1472,10 +1523,10 @@ export class AppDatabase {
     return Number(result.lastInsertRowid);
   }
 
-  latestWordPhaseScore(wordId: string, phase: WordSubmissionPhase): number | null {
+  latestWordPhaseScore(wordId: string, phase: WordSubmissionPhase, practiceKind: WordPracticeKind = "junior"): number | null {
     const row = this.db
-      .prepare("SELECT score FROM word_submissions WHERE word_id = ? AND phase = ? ORDER BY id DESC LIMIT 1")
-      .get(wordId, phase) as { score: number } | undefined;
+      .prepare("SELECT score FROM word_submissions WHERE practice_kind = ? AND word_id = ? AND phase = ? ORDER BY id DESC LIMIT 1")
+      .get(practiceKind, wordId, phase) as { score: number } | undefined;
     return row?.score ?? null;
   }
 
@@ -1491,6 +1542,7 @@ export class AppDatabase {
       const phases = latestRows.get(wordId);
       const wordRow = phases?.get("word");
       if (!wordRow) return false;
+      if (session.practice_kind === "senior") continue;
       if (wordRow.score < threshold) continue;
       const exampleRow = phases?.get("example");
       if (!exampleRow) return false;
@@ -1503,7 +1555,60 @@ export class AppDatabase {
     return true;
   }
 
-  // 本次会话所有提交（单词阶段 + 例句阶段）的平均分。
+  getWordSessionSummary(sessionId: number): WordSessionSummary | null {
+    const session = this.getWordSession(sessionId);
+    if (!session) return null;
+    const items = this.db
+      .prepare(
+        `
+        SELECT
+          i.item_no,
+          i.word_id,
+          ws.score,
+          ws.level,
+          ws.error_summary
+        FROM word_session_items i
+        LEFT JOIN word_submissions ws
+          ON ws.id = (
+            SELECT MAX(latest.id)
+            FROM word_submissions latest
+            WHERE latest.session_id = i.session_id
+              AND latest.word_id = i.word_id
+              AND latest.practice_kind = ?
+              AND latest.phase = 'word'
+          )
+        WHERE i.session_id = ?
+        ORDER BY i.item_no
+      `
+      )
+      .all(session.practice_kind, sessionId) as Array<{
+      item_no: number;
+      word_id: string;
+      score: number | null;
+      level: string | null;
+      error_summary: string | null;
+    }>;
+    const summaryItems = items.map((item) => ({
+      itemNo: item.item_no,
+      wordId: item.word_id,
+      score: item.score === null || item.score === undefined ? null : Number(item.score),
+      level: item.level,
+      errorSummary: item.error_summary
+    }));
+    const submitted = summaryItems.filter((item) => item.score !== null);
+    const averageScore = submitted.length
+      ? submitted.reduce((sum, item) => sum + Number(item.score), 0) / submitted.length
+      : null;
+    return {
+      session,
+      items: summaryItems,
+      averageScore,
+      submittedCount: submitted.length,
+      errorCount: summaryItems.filter((item) => item.errorSummary).length
+    };
+  }
+
+  // 本次会话所有提交（中考含单词阶段+例句阶段，高考仅单词阶段）的展示平均分。
   private computeWordSessionAverage(sessionId: number): number | null {
     const row = this.db
       .prepare("SELECT ROUND(AVG(score)) AS avg FROM word_submissions WHERE session_id = ?")
@@ -1512,7 +1617,7 @@ export class AppDatabase {
   }
 
   // 按关卡聚合：完成次数 + 历史最高均分（MAX 自动跳过早期未记分的 null 会话）。
-  wordLevelAttemptStats(): Map<string, { attemptCount: number; bestAverageScore: number | null }> {
+  wordLevelAttemptStats(practiceKind: WordPracticeKind = "junior"): Map<string, { attemptCount: number; bestAverageScore: number | null }> {
     const rows = this.db
       .prepare(
         `
@@ -1520,11 +1625,11 @@ export class AppDatabase {
           COUNT(*) AS attempt_count,
           MAX(average_score) AS best_average_score
         FROM word_sessions
-        WHERE status = 'completed' AND level_id IS NOT NULL AND mode = 'level'
+        WHERE practice_kind = ? AND status = 'completed' AND level_id IS NOT NULL AND mode = 'level'
         GROUP BY level_id
       `
       )
-      .all() as Array<{ level_id: string; attempt_count: number; best_average_score: number | null }>;
+      .all(practiceKind) as Array<{ level_id: string; attempt_count: number; best_average_score: number | null }>;
     const result = new Map<string, { attemptCount: number; bestAverageScore: number | null }>();
     for (const row of rows) {
       result.set(row.level_id, {
@@ -1535,7 +1640,27 @@ export class AppDatabase {
     return result;
   }
 
-  masteredWordIds(threshold: number): Set<string> {
+  masteredWordIds(threshold: number, practiceKind: WordPracticeKind = "junior"): Set<string> {
+    if (practiceKind === "senior") {
+      const rows = this.db
+        .prepare(`
+          WITH latest AS (
+            SELECT ws.word_id, ws.score
+            FROM word_submissions ws
+            INNER JOIN (
+              SELECT word_id, MAX(id) AS id
+              FROM word_submissions
+              WHERE practice_kind = 'senior' AND phase = 'word'
+              GROUP BY word_id
+            ) latest ON latest.id = ws.id
+          )
+          SELECT word_id
+          FROM latest
+          WHERE score >= ?
+        `)
+        .all(threshold) as Array<{ word_id: string }>;
+      return new Set(rows.map((row) => row.word_id));
+    }
     const rows = this.db
       .prepare(`
         WITH latest AS (
@@ -1544,6 +1669,7 @@ export class AppDatabase {
           INNER JOIN (
             SELECT word_id, phase, MAX(id) AS id
             FROM word_submissions
+            WHERE practice_kind = 'junior'
             GROUP BY word_id, phase
           ) latest ON latest.id = ws.id
         )
@@ -1556,14 +1682,14 @@ export class AppDatabase {
     return new Set(rows.map((row) => row.word_id));
   }
 
-  practicedWordIds(): Set<string> {
+  practicedWordIds(practiceKind: WordPracticeKind = "junior"): Set<string> {
     const rows = this.db
-      .prepare("SELECT DISTINCT word_id FROM word_submissions")
-      .all() as Array<{ word_id: string }>;
+      .prepare("SELECT DISTINCT word_id FROM word_submissions WHERE practice_kind = ?")
+      .all(practiceKind) as Array<{ word_id: string }>;
     return new Set(rows.map((row) => row.word_id));
   }
 
-  latestWordReviewRows(threshold: number): WordReviewRow[] {
+  latestWordReviewRows(threshold: number, practiceKind: WordPracticeKind = "junior"): WordReviewRow[] {
     return this.db
       .prepare(`
         WITH latest AS (
@@ -1572,6 +1698,8 @@ export class AppDatabase {
           INNER JOIN (
             SELECT word_id, phase, MAX(id) AS id
             FROM word_submissions
+            WHERE practice_kind = ?
+              ${practiceKind === "senior" ? "AND phase = 'word'" : ""}
             GROUP BY word_id, phase
           ) latest ON latest.id = ws.id
         ),
@@ -1595,21 +1723,21 @@ export class AppDatabase {
         WHERE rank = 1
         ORDER BY latest_score ASC, datetime(latest_at) ASC
       `)
-      .all(threshold) as WordReviewRow[];
+      .all(practiceKind, threshold) as WordReviewRow[];
   }
 
-  getWordProgress(totalWords: number, threshold: number, wordIds?: string[]): WordProgressStats {
-    const scope = scopedWordClause(wordIds);
+  getWordProgress(totalWords: number, threshold: number, wordIds?: string[], practiceKind: WordPracticeKind = "junior"): WordProgressStats {
+    const scope = scopedWordClause(practiceKind, wordIds);
     const practicedRow = this.db
       .prepare(`SELECT COUNT(DISTINCT word_id) AS count FROM word_submissions${scope.where}`)
       .get(...scope.params) as { count: number };
-    const sessionRow = this.db.prepare("SELECT COUNT(*) AS count FROM word_sessions").get() as { count: number };
+    const sessionRow = this.db.prepare("SELECT COUNT(*) AS count FROM word_sessions WHERE practice_kind = ?").get(practiceKind) as { count: number };
     const submissionRow = this.db
       .prepare(`SELECT COUNT(*) AS count FROM word_submissions${scope.where}`)
       .get(...scope.params) as { count: number };
     const scopedIds = wordIds ? new Set(wordIds) : null;
-    const mastered = this.masteredWordIds(threshold);
-    const reviewRows = this.latestWordReviewRows(threshold);
+    const mastered = this.masteredWordIds(threshold, practiceKind);
+    const reviewRows = this.latestWordReviewRows(threshold, practiceKind);
     return {
       totalWords,
       practicedWords: practicedRow.count,
@@ -1691,6 +1819,7 @@ export class AppDatabase {
         `
         SELECT
           date(datetime(completed_at, '+8 hours')) AS activity_date,
+          practice_kind,
           mode,
           level_id,
           word_count,
@@ -1706,6 +1835,7 @@ export class AppDatabase {
       )
       .all(startTimestamp, endTimestamp) as Array<{
       activity_date: string;
+      practice_kind: WordPracticeKind;
       mode: string;
       level_id: string | null;
       word_count: number;
@@ -1718,6 +1848,7 @@ export class AppDatabase {
         `
         SELECT
           date(datetime(created_at, '+8 hours')) AS activity_date,
+          practice_kind,
           COUNT(*) AS submission_count,
           COUNT(DISTINCT word_id) AS word_count,
           ROUND(AVG(score)) AS average_score,
@@ -1725,11 +1856,12 @@ export class AppDatabase {
         FROM word_submissions
         WHERE created_at >= ?
           AND created_at < ?
-        GROUP BY activity_date
+        GROUP BY activity_date, practice_kind
       `
       )
       .all(startTimestamp, endTimestamp) as Array<{
       activity_date: string;
+      practice_kind: WordPracticeKind;
       submission_count: number;
       word_count: number;
       average_score: number | null;
@@ -1792,17 +1924,18 @@ export class AppDatabase {
       if (!day) continue;
       const count = (wordCompletionCounts.get(row.activity_date) || 0) + 1;
       wordCompletionCounts.set(row.activity_date, count);
+      const label = wordPracticeLabel(row.practice_kind);
       day.completed = true;
       day.word = {
         status: "complete",
-        label: count > 1 ? `词汇完成 ${count} 次` : "词汇完成",
+        label: count > 1 ? `词汇完成 ${count} 次` : `${label}完成`,
         score: row.average_score,
         count,
         time: shanghaiTime(row.completed_at)
       };
       day.events.push({
         type: "word",
-        label: "词汇练习",
+        label,
         detail: `${wordSessionLabel(row.mode, row.level_id)} · ${row.word_count} 词 · ${scoreText(row.average_score)}`,
         score: row.average_score,
         time: shanghaiTime(row.completed_at),
@@ -1815,16 +1948,17 @@ export class AppDatabase {
       if (!day) continue;
       day.completed = true;
       if (day.word.status === "none") {
+        const label = wordPracticeLabel(row.practice_kind);
         day.word = {
           status: "partial",
-          label: `单词 ${row.word_count} 个`,
+          label: `${label} ${row.word_count} 个`,
           score: row.average_score,
           count: row.word_count,
           time: row.latest_at ? shanghaiTime(row.latest_at) : null
         };
         day.events.push({
           type: "word",
-          label: "词汇练习",
+          label,
           detail: `已练 ${row.word_count} 个词 · 均分 ${scoreText(row.average_score)}`,
           score: row.average_score,
           time: row.latest_at ? shanghaiTime(row.latest_at) : null,
@@ -1888,6 +2022,8 @@ export class AppDatabase {
       penaltyMinCents: centsSetting(values.get("penalty_min_cents"), WALLET_DEFAULTS.penaltyMinCents),
       penaltyMaxCents: centsSetting(values.get("penalty_max_cents"), WALLET_DEFAULTS.penaltyMaxCents),
       withdrawThresholdCents: centsSetting(values.get("withdraw_threshold_cents"), WALLET_DEFAULTS.withdrawThresholdCents),
+      seniorWordRewardAverageAbove: scoreSetting(values.get("senior_word_reward_average_above"), WALLET_DEFAULTS.seniorWordRewardAverageAbove),
+      seniorWordPenaltyAverageBelow: scoreSetting(values.get("senior_word_penalty_average_below"), WALLET_DEFAULTS.seniorWordPenaltyAverageBelow),
       updatedAt
     };
   }
@@ -1901,7 +2037,9 @@ export class AppDatabase {
       penaltyScoreBelow: input.penaltyScoreBelow ?? current.penaltyScoreBelow,
       penaltyMinCents: input.penaltyMinCents ?? current.penaltyMinCents,
       penaltyMaxCents: input.penaltyMaxCents ?? current.penaltyMaxCents,
-      withdrawThresholdCents: input.withdrawThresholdCents ?? current.withdrawThresholdCents
+      withdrawThresholdCents: input.withdrawThresholdCents ?? current.withdrawThresholdCents,
+      seniorWordRewardAverageAbove: input.seniorWordRewardAverageAbove ?? current.seniorWordRewardAverageAbove,
+      seniorWordPenaltyAverageBelow: input.seniorWordPenaltyAverageBelow ?? current.seniorWordPenaltyAverageBelow
     };
     if (!Number.isInteger(next.rewardScore) || next.rewardScore < 1 || next.rewardScore > 100) {
       throw new Error("奖励触发分数需为 1~100 之间的整数。");
@@ -1909,8 +2047,17 @@ export class AppDatabase {
     if (!Number.isInteger(next.penaltyScoreBelow) || next.penaltyScoreBelow < 0 || next.penaltyScoreBelow > 100) {
       throw new Error("扣除触发分数需为 0~100 之间的整数。");
     }
+    if (!Number.isInteger(next.seniorWordRewardAverageAbove) || next.seniorWordRewardAverageAbove < 0 || next.seniorWordRewardAverageAbove > 100) {
+      throw new Error("高考词汇奖励平均分需为 0~100 之间的整数。");
+    }
+    if (!Number.isInteger(next.seniorWordPenaltyAverageBelow) || next.seniorWordPenaltyAverageBelow < 0 || next.seniorWordPenaltyAverageBelow > 100) {
+      throw new Error("高考词汇扣除平均分需为 0~100 之间的整数。");
+    }
     if (next.rewardScore < next.penaltyScoreBelow) {
       throw new Error("奖励触发分数不能低于扣除触发分数。");
+    }
+    if (next.seniorWordRewardAverageAbove <= next.seniorWordPenaltyAverageBelow) {
+      throw new Error("高考词汇奖励平均分必须高于扣除平均分。");
     }
     const fields: Array<[string, number, number]> = [
       ["奖励金额", next.rewardMinCents, 10000],
@@ -1939,6 +2086,8 @@ export class AppDatabase {
       upsert.run("penalty_min_cents", String(next.penaltyMinCents));
       upsert.run("penalty_max_cents", String(next.penaltyMaxCents));
       upsert.run("withdraw_threshold_cents", String(next.withdrawThresholdCents));
+      upsert.run("senior_word_reward_average_above", String(next.seniorWordRewardAverageAbove));
+      upsert.run("senior_word_penalty_average_below", String(next.seniorWordPenaltyAverageBelow));
       this.db.exec("COMMIT");
       return this.getWalletSettings();
     } catch (error) {
@@ -1958,6 +2107,9 @@ export class AppDatabase {
   settleSubmissionWallet(input: WalletSettleInput): WalletChange {
     // AI 评分失败(errorSummary 非空)不奖不罚——失败的是评分,不是孩子。
     if (input.errorSummary) {
+      return { change: 0, balance: this.getWalletBalance(), reason: null };
+    }
+    if (input.source === "word" && normalizePracticeKind(input.practiceKind) === "senior") {
       return { change: 0, balance: this.getWalletBalance(), reason: null };
     }
     const refId = input.source === "sentence" ? input.questionId : `${input.wordId}:${input.phase}`;
@@ -1998,6 +2150,60 @@ export class AppDatabase {
             VALUES (?, ?, ?, ?, ?, ?)
           `)
           .run(change > 0 ? "reward" : "penalty", change, input.source, refId, input.submissionId, input.score);
+      }
+      this.db.exec("COMMIT");
+      return { change, balance: this.getWalletBalance(), reason };
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
+  settleSeniorWordSessionWallet(sessionId: number): WalletChange {
+    const settings = this.getWalletSettings();
+    const summary = this.getWordSessionSummary(sessionId);
+    if (!summary) {
+      return { change: 0, balance: this.getWalletBalance(), reason: null };
+    }
+    const session = summary.session;
+    if (session.practice_kind !== "senior" || session.status !== "completed" || session.mode === "review") {
+      return { change: 0, balance: this.getWalletBalance(), reason: null };
+    }
+
+    if (summary.averageScore === null || summary.submittedCount < session.word_count || summary.errorCount > 0) {
+      return { change: 0, balance: this.getWalletBalance(), reason: null };
+    }
+
+    const averageScore = Number(summary.averageScore);
+    let change = 0;
+    let reason: WalletChange["reason"] = null;
+    if (averageScore >= settings.seniorWordRewardAverageAbove) {
+      change = randomWholeYuanCents(settings.rewardMinCents, settings.rewardMaxCents);
+      reason = "perfect";
+    } else if (averageScore < settings.seniorWordPenaltyAverageBelow) {
+      change = -randomWholeYuanCents(settings.penaltyMinCents, settings.penaltyMaxCents);
+      reason = "fail";
+    }
+    if (change === 0) return { change: 0, balance: this.getWalletBalance(), reason: null };
+
+    const refId = seniorWordSessionRefId(session, this.getWordSessionWordIds(sessionId));
+    this.db.exec("BEGIN");
+    try {
+      const settled = this.db
+        .prepare("SELECT 1 FROM wallet_transactions WHERE source = 'senior-word-session' AND ref_id = ? AND type IN ('reward', 'penalty') LIMIT 1")
+        .get(refId);
+      if (!settled) {
+        this.db
+          .prepare(
+            `
+            INSERT INTO wallet_transactions (type, amount_cents, source, ref_id, submission_id, score, note)
+            VALUES (?, ?, 'senior-word-session', ?, NULL, ?, ?)
+          `
+          )
+          .run(change > 0 ? "reward" : "penalty", change, refId, Math.round(averageScore), "高考词汇整组平均分结算");
+      } else {
+        change = 0;
+        reason = null;
       }
       this.db.exec("COMMIT");
       return { change, balance: this.getWalletBalance(), reason };
@@ -2069,12 +2275,12 @@ export class AppDatabase {
   }
 }
 
-function scopedWordClause(wordIds?: string[]): { where: string; params: string[] } {
-  if (!wordIds) return { where: "", params: [] };
+function scopedWordClause(practiceKind: WordPracticeKind, wordIds?: string[]): { where: string; params: string[] } {
+  if (!wordIds) return { where: " WHERE practice_kind = ?", params: [practiceKind] };
   if (wordIds.length === 0) return { where: " WHERE 1 = 0", params: [] };
   return {
-    where: ` WHERE word_id IN (${wordIds.map(() => "?").join(",")})`,
-    params: wordIds
+    where: ` WHERE practice_kind = ? AND word_id IN (${wordIds.map(() => "?").join(",")})`,
+    params: [practiceKind, ...wordIds]
   };
 }
 
@@ -2160,6 +2366,10 @@ function wordSessionLabel(mode: string, levelId: string | null): string {
   if (mode === "review") return "复习";
   if (levelId) return `关卡 ${levelId.toUpperCase()}`;
   return "自由练习";
+}
+
+function wordPracticeLabel(practiceKind: WordPracticeKind): string {
+  return practiceKind === "senior" ? "高考词汇练习" : "中考词汇练习";
 }
 
 function activityAnchorDate(year: number, today: string): string | null {
@@ -2254,8 +2464,27 @@ const WALLET_DEFAULTS = {
   penaltyScoreBelow: 60,
   penaltyMinCents: 100,
   penaltyMaxCents: 200,
-  withdrawThresholdCents: 1000
+  withdrawThresholdCents: 1000,
+  seniorWordRewardAverageAbove: 90,
+  seniorWordPenaltyAverageBelow: 70
 };
+
+function normalizePracticeKind(value: unknown): WordPracticeKind {
+  return value === "senior" ? "senior" : "junior";
+}
+
+function wordBatchSizeKey(practiceKind: WordPracticeKind): string {
+  return practiceKind === "senior" ? "senior_batch_size" : "batch_size";
+}
+
+function defaultWordBatchSize(practiceKind: WordPracticeKind): number {
+  return practiceKind === "senior" ? 10 : 5;
+}
+
+function seniorWordSessionRefId(session: WordSessionRow, wordIds: string[]): string {
+  const groupId = session.level_id || "free";
+  return `${session.practice_kind}:${session.scope_tag}:${session.mode}:${groupId}:${wordIds.join(",")}`;
+}
 
 // 钱包金额配置:整数分、整元(100 的倍数)、至少 1 元,否则回退默认值。
 function centsSetting(value: string | undefined, fallback: number): number {
@@ -2285,7 +2514,7 @@ function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
-function clampWordBatchSize(value: number): number {
-  if (!Number.isFinite(value)) return 5;
+function clampWordBatchSize(value: number, fallback = 5): number {
+  if (!Number.isFinite(value)) return fallback;
   return Math.max(1, Math.min(30, Math.round(value)));
 }

@@ -94,6 +94,8 @@ export type WalletSettings = {
   penaltyMinCents: number;
   penaltyMaxCents: number;
   withdrawThresholdCents: number;
+  seniorWordRewardAverageAbove: number;
+  seniorWordPenaltyAverageBelow: number;
   updatedAt: string | null;
 };
 

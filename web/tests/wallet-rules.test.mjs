@@ -58,9 +58,10 @@ function submitSentence(database, { questionId, score, errorSummary, mode = "day
   return database.settleSubmissionWallet({ source: "sentence", questionId, submissionId, score, errorSummary });
 }
 
-function submitWord(database, { wordId, phase, score, errorSummary }) {
+function submitWord(database, { wordId, phase, score, errorSummary, practiceKind = "junior", sessionId = null }) {
   const submissionId = database.saveWordSubmission({
-    sessionId: null,
+    sessionId,
+    practiceKind,
     wordId,
     phase,
     wordAnswer: phase === "word" ? wordId : null,
@@ -68,7 +69,7 @@ function submitWord(database, { wordId, phase, score, errorSummary }) {
     answer: "student answer",
     grade: grade(score, errorSummary)
   });
-  return database.settleSubmissionWallet({ source: "word", wordId, phase, submissionId, score, errorSummary });
+  return database.settleSubmissionWallet({ source: "word", practiceKind, wordId, phase, submissionId, score, errorSummary });
 }
 
 test("wallet settings default to 1~3 yuan reward, 1~2 yuan penalty, 10 yuan threshold", () => {
@@ -82,7 +83,9 @@ test("wallet settings default to 1~3 yuan reward, 1~2 yuan penalty, 10 yuan thre
       penaltyScoreBelow: settings.penaltyScoreBelow,
       penaltyMinCents: settings.penaltyMinCents,
       penaltyMaxCents: settings.penaltyMaxCents,
-      withdrawThresholdCents: settings.withdrawThresholdCents
+      withdrawThresholdCents: settings.withdrawThresholdCents,
+      seniorWordRewardAverageAbove: settings.seniorWordRewardAverageAbove,
+      seniorWordPenaltyAverageBelow: settings.seniorWordPenaltyAverageBelow
     },
     {
       rewardScore: 100,
@@ -91,7 +94,9 @@ test("wallet settings default to 1~3 yuan reward, 1~2 yuan penalty, 10 yuan thre
       penaltyScoreBelow: 60,
       penaltyMinCents: 100,
       penaltyMaxCents: 200,
-      withdrawThresholdCents: 1000
+      withdrawThresholdCents: 1000,
+      seniorWordRewardAverageAbove: 90,
+      seniorWordPenaltyAverageBelow: 70
     }
   );
 });
@@ -124,6 +129,55 @@ test("word rewards are tracked per word and phase", () => {
   assert.equal(submitWord(database, { wordId: "ability", phase: "word", score: 100 }).change, 0);
   assert.equal(submitWord(database, { wordId: "ability", phase: "example", score: 100 }).change, 0);
   assert.equal(database.getWalletBalance(), 400);
+});
+
+test("senior word submissions do not use per-word rewards", () => {
+  const database = makeDeterministicDatabase();
+  assert.equal(submitWord(database, { practiceKind: "senior", wordId: "ability", phase: "word", score: 100 }).change, 0);
+  assert.equal(database.getWalletBalance(), 0);
+});
+
+test("senior word sessions settle by group average with strict thresholds", () => {
+  const database = makeDeterministicDatabase();
+  const rewardSession = database.startWordSession([{ id: "ability" }, { id: "able" }], "senior-candidate", "level", "a-1", "senior");
+  submitWord(database, { sessionId: rewardSession.sessionId, practiceKind: "senior", wordId: "ability", phase: "word", score: 100 });
+  submitWord(database, { sessionId: rewardSession.sessionId, practiceKind: "senior", wordId: "able", phase: "word", score: 82 });
+  assert.equal(database.completeWordSessionIfReady(rewardSession.sessionId, 80), true);
+  const rewardSummary = database.getWordSessionSummary(rewardSession.sessionId);
+  assert.equal(rewardSummary?.submittedCount, 2);
+  assert.equal(rewardSummary?.averageScore, 91);
+  assert.deepEqual(
+    rewardSummary?.items.map((item) => ({ wordId: item.wordId, score: item.score })),
+    [
+      { wordId: "ability", score: 100 },
+      { wordId: "able", score: 82 }
+    ]
+  );
+  assert.equal(database.settleSeniorWordSessionWallet(rewardSession.sessionId).change, 200);
+  assert.equal(database.settleSeniorWordSessionWallet(rewardSession.sessionId).change, 0);
+
+  // 平均分正好等于奖励线（90）应触发奖励（>=，不是 >）。
+  const boundarySession = database.startWordSession([{ id: "about" }, { id: "above" }], "senior-candidate", "level", "a-2", "senior");
+  submitWord(database, { sessionId: boundarySession.sessionId, practiceKind: "senior", wordId: "about", phase: "word", score: 90 });
+  submitWord(database, { sessionId: boundarySession.sessionId, practiceKind: "senior", wordId: "above", phase: "word", score: 90 });
+  assert.equal(database.completeWordSessionIfReady(boundarySession.sessionId, 80), true);
+  assert.equal(database.getWordSessionSummary(boundarySession.sessionId)?.averageScore, 90);
+  assert.equal(database.settleSeniorWordSessionWallet(boundarySession.sessionId).change, 200);
+
+  // 平均分在扣钱线（70）与奖励线（90）之间，本组不奖不扣。
+  const neutralSession = database.startWordSession([{ id: "accurate" }, { id: "ache" }], "senior-candidate", "level", "a-4", "senior");
+  submitWord(database, { sessionId: neutralSession.sessionId, practiceKind: "senior", wordId: "accurate", phase: "word", score: 80 });
+  submitWord(database, { sessionId: neutralSession.sessionId, practiceKind: "senior", wordId: "ache", phase: "word", score: 80 });
+  assert.equal(database.completeWordSessionIfReady(neutralSession.sessionId, 80), true);
+  assert.equal(database.settleSeniorWordSessionWallet(neutralSession.sessionId).change, 0);
+
+  const penaltySession = database.startWordSession([{ id: "accept" }, { id: "accident" }], "senior-candidate", "level", "a-3", "senior");
+  submitWord(database, { sessionId: penaltySession.sessionId, practiceKind: "senior", wordId: "accept", phase: "word", score: 69 });
+  submitWord(database, { sessionId: penaltySession.sessionId, practiceKind: "senior", wordId: "accident", phase: "word", score: 70 });
+  assert.equal(database.completeWordSessionIfReady(penaltySession.sessionId, 80), true);
+  assert.equal(database.settleSeniorWordSessionWallet(penaltySession.sessionId).change, -100);
+  // 200 (reward) + 200 (boundary reward) - 100 (penalty)
+  assert.equal(database.getWalletBalance(), 300);
 });
 
 test("a failing score penalizes only on the first-ever submission", () => {
@@ -232,7 +286,9 @@ test("wallet settings round-trip and reject invalid values", () => {
     rewardMinCents: 200,
     rewardMaxCents: 500,
     penaltyScoreBelow: 55,
-    withdrawThresholdCents: 2000
+    withdrawThresholdCents: 2000,
+    seniorWordRewardAverageAbove: 88,
+    seniorWordPenaltyAverageBelow: 65
   });
   assert.equal(saved.rewardScore, 98);
   assert.equal(saved.rewardMinCents, 200);
@@ -240,10 +296,13 @@ test("wallet settings round-trip and reject invalid values", () => {
   assert.equal(saved.penaltyScoreBelow, 55);
   assert.equal(saved.withdrawThresholdCents, 2000);
   assert.equal(saved.penaltyMinCents, 100);
+  assert.equal(saved.seniorWordRewardAverageAbove, 88);
+  assert.equal(saved.seniorWordPenaltyAverageBelow, 65);
 
   assert.throws(() => database.updateWalletSettings({ rewardMinCents: 600, rewardMaxCents: 300 }), /下限不能大于上限/);
   assert.throws(() => database.updateWalletSettings({ penaltyMinCents: 150 }), /整数元/);
   assert.throws(() => database.updateWalletSettings({ withdrawThresholdCents: 0 }), /整数元/);
+  assert.throws(() => database.updateWalletSettings({ seniorWordRewardAverageAbove: 60, seniorWordPenaltyAverageBelow: 70 }), /必须高于/);
 });
 
 test("wallet transactions list paginates and filters by type", () => {

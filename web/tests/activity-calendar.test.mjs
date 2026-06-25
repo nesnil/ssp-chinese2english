@@ -46,9 +46,10 @@ function submitSentenceAt(database, { questionId, score, createdAt, season = 1, 
   return id;
 }
 
-function submitWordAt(database, { wordId, score, createdAt, phase = "word" }) {
+function submitWordAt(database, { wordId, score, createdAt, phase = "word", practiceKind = "junior" }) {
   const id = database.saveWordSubmission({
     sessionId: null,
+    practiceKind,
     wordId,
     phase,
     wordAnswer: wordId,
@@ -68,12 +69,12 @@ function insertCompletedSentenceDay(database, { season, day, questionCount, scor
     .run(season, day, questionCount, score, completedAt);
 }
 
-function insertCompletedWordSession(database, { wordCount, score, completedAt, mode = "level", levelId = "a-1" }) {
+function insertCompletedWordSession(database, { wordCount, score, completedAt, mode = "level", levelId = "a-1", practiceKind = "junior" }) {
   database.db
     .prepare(
-      "INSERT INTO word_sessions (scope_tag, mode, level_id, word_count, status, average_score, completed_at) VALUES ('shanghai-zhongkao', ?, ?, ?, 'completed', ?, ?)"
+      "INSERT INTO word_sessions (practice_kind, scope_tag, mode, level_id, word_count, status, average_score, completed_at) VALUES (?, ?, ?, ?, ?, 'completed', ?, ?)"
     )
-    .run(mode, levelId, wordCount, score, completedAt);
+    .run(practiceKind, practiceKind === "senior" ? "senior-candidate" : "shanghai-zhongkao", mode, levelId, wordCount, score, completedAt);
 }
 
 function day(calendar, date) {
@@ -138,8 +139,10 @@ test("activity calendar reports completed, partial and missing practice states",
   assert.equal(jan5.sentence.status, "complete");
   assert.equal(jan5.sentence.score, 92);
   assert.equal(jan5.word.status, "complete");
+  assert.equal(jan5.word.label, "中考词汇练习完成");
   assert.equal(jan5.word.score, 88);
   assert.equal(jan5.events.length, 2);
+  assert.equal(jan5.events[1].label, "中考词汇练习");
 
   const jan6 = day(calendar, "2026-01-06");
   assert.equal(jan6.sentence.status, "partial");
@@ -155,4 +158,30 @@ test("activity calendar reports completed, partial and missing practice states",
   assert.equal(calendar.summary.currentStreak, 3);
   assert.equal(calendar.summary.longestStreak, 3);
   assert.equal(calendar.summary.completedDays, 3);
+});
+
+test("activity calendar labels senior word practice separately", () => {
+  const database = makeDatabase();
+  insertCompletedWordSession(database, {
+    practiceKind: "senior",
+    wordCount: 10,
+    score: 91,
+    completedAt: "2026-01-08 12:30:00",
+    levelId: "a-1"
+  });
+  submitWordAt(database, {
+    practiceKind: "senior",
+    wordId: "academic",
+    score: 85,
+    createdAt: "2026-01-09 10:00:00"
+  });
+
+  const calendar = database.getActivityCalendar(2026, "2026-01-09");
+  const jan8 = day(calendar, "2026-01-08");
+  assert.equal(jan8.word.label, "高考词汇练习完成");
+  assert.equal(jan8.events[0].label, "高考词汇练习");
+
+  const jan9 = day(calendar, "2026-01-09");
+  assert.equal(jan9.word.label, "高考词汇练习 1 个");
+  assert.equal(jan9.events[0].label, "高考词汇练习");
 });

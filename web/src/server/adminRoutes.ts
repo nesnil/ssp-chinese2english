@@ -597,7 +597,9 @@ function readWalletSettingsInput(body: unknown): Parameters<AppDatabase["updateW
     penaltyScoreBelow: read("penaltyScoreBelow"),
     penaltyMinCents: read("penaltyMinCents"),
     penaltyMaxCents: read("penaltyMaxCents"),
-    withdrawThresholdCents: read("withdrawThresholdCents")
+    withdrawThresholdCents: read("withdrawThresholdCents"),
+    seniorWordRewardAverageAbove: read("seniorWordRewardAverageAbove"),
+    seniorWordPenaltyAverageBelow: read("seniorWordPenaltyAverageBelow")
   };
 }
 

@@ -3,7 +3,7 @@ import { accessSync, constants, mkdirSync } from "node:fs";
 import express, { type NextFunction, type Request, type Response } from "express";
 import { loadConfig, publicDir } from "./config.js";
 import { registerAdminRoutes, walletTxToJson } from "./adminRoutes.js";
-import { AppDatabase, computeDayProgress, shanghaiDateString } from "./db.js";
+import { AppDatabase, computeDayProgress, shanghaiDateString, type WordPracticeKind } from "./db.js";
 import { AiConfigError, gradeAnswer, gradeExampleRecall, gradeWordRecall } from "./grader.js";
 import { generateWordAudio } from "./tts.js";
 import { getBank, getDayQuestions, getQuestion, initQuestionBank, loadSeedQuestionBank, toPublicQuestion } from "./questionBank.js";
@@ -22,8 +22,27 @@ import {
 
 const config = loadConfig();
 const database = new AppDatabase(config);
-const DEFAULT_WORD_SCOPE_TAG = "shanghai-zhongkao";
-const WORD_LEVEL_SIZE = 5;
+const WORD_PROFILES: Record<
+  WordPracticeKind,
+  { kind: WordPracticeKind; scopeTag: string; title: string; heroTitle: string; subtitle: string; includesExamples: boolean }
+> = {
+  junior: {
+    kind: "junior",
+    scopeTag: "shanghai-zhongkao",
+    title: "上海初中英语考纲词汇",
+    heroTitle: "听发音，默写单词和例句",
+    subtitle: "中考词汇练习",
+    includesExamples: true
+  },
+  senior: {
+    kind: "senior",
+    scopeTag: "senior-candidate",
+    title: "高考词汇练习",
+    heroTitle: "听发音，默写单词和中文意思",
+    subtitle: "高中候选词汇",
+    includesExamples: false
+  }
+};
 type WordSessionResume = ReturnType<AppDatabase["getWordSessionResume"]>;
 database.pruneSessions();
 seedReferenceData();
@@ -243,11 +262,17 @@ app.get("/api/review/history", requireAuth, (_req, res) => {
   });
 });
 
-app.get("/api/word/catalog", requireAuth, (_req, res) => {
+app.get("/api/word/catalog", requireAuth, (req, res) => {
+  const profile = wordProfileFromRequest(req);
   const bank = getWordBank();
+  const scopeWords = getWordsByTag(profile.scopeTag);
   res.json({
-    title: "上海初中英语考纲词汇",
-    totalWords: bank.totalWords,
+    profile: profile.kind,
+    title: profile.title,
+    heroTitle: profile.heroTitle,
+    subtitle: profile.subtitle,
+    includesExamples: profile.includesExamples,
+    totalWords: profile.kind === "junior" ? getWordScopeDisplayTotal(scopeWords.length, profile.kind) : scopeWords.length,
     totalAudioFiles: bank.totalAudioFiles,
     missingAudioCount: bank.missingAudio.length,
     generatedAt: bank.generatedAt,
@@ -255,43 +280,52 @@ app.get("/api/word/catalog", requireAuth, (_req, res) => {
   });
 });
 
-app.get("/api/word/settings", requireAuth, (_req, res) => {
-  res.json({ batchSize: database.getWordBatchSize() });
+app.get("/api/word/settings", requireAuth, (req, res) => {
+  const profile = wordProfileFromRequest(req);
+  res.json({ profile: profile.kind, batchSize: database.getWordBatchSize(profile.kind) });
 });
 
 app.patch("/api/word/settings", requireAuth, (req, res) => {
-  const batchSize = database.setWordBatchSize(Number(req.body?.batchSize));
-  res.json({ batchSize });
+  const profile = wordProfileFromRequest(req);
+  const batchSize = database.setWordBatchSize(Number(req.body?.batchSize), profile.kind);
+  res.json({ profile: profile.kind, batchSize });
 });
 
-app.get("/api/word/progress", requireAuth, (_req, res) => {
-  const scopeWords = getWordsByTag(DEFAULT_WORD_SCOPE_TAG);
-  const totalWords = getWordScopeDisplayTotal(scopeWords.length);
+app.get("/api/word/progress", requireAuth, (req, res) => {
+  const profile = wordProfileFromRequest(req);
+  const scopeWords = getWordsByTag(profile.scopeTag);
+  const totalWords = getWordScopeDisplayTotal(scopeWords.length, profile.kind);
   res.json({
+    profile: profile.kind,
     threshold: config.reviewScoreThreshold,
-    scopeTag: DEFAULT_WORD_SCOPE_TAG,
+    scopeTag: profile.scopeTag,
     ...database.getWordProgress(
       totalWords,
       config.reviewScoreThreshold,
-      scopeWords.map((word) => word.id)
+      scopeWords.map((word) => word.id),
+      profile.kind
     )
   });
 });
 
-app.get("/api/word/levels", requireAuth, (_req, res) => {
+app.get("/api/word/levels", requireAuth, (req, res) => {
+  const profile = wordProfileFromRequest(req);
   res.json({
+    profile: profile.kind,
     threshold: config.reviewScoreThreshold,
-    scopeTag: DEFAULT_WORD_SCOPE_TAG,
-    levelSize: WORD_LEVEL_SIZE,
-    totalWords: getWordScopeDisplayTotal(getWordsByTag(DEFAULT_WORD_SCOPE_TAG).length),
-    groups: buildWordLevelGroups()
+    scopeTag: profile.scopeTag,
+    levelSize: database.getWordBatchSize(profile.kind),
+    totalWords: getWordScopeDisplayTotal(getWordsByTag(profile.scopeTag).length, profile.kind),
+    groups: buildWordLevelGroups(profile.kind)
   });
 });
 
-app.get("/api/word-review", requireAuth, (_req, res) => {
-  const scopeIds = new Set(getWordsByTag(DEFAULT_WORD_SCOPE_TAG).map((word) => word.id));
-  const rows = database.latestWordReviewRows(config.reviewScoreThreshold);
+app.get("/api/word-review", requireAuth, (req, res) => {
+  const profile = wordProfileFromRequest(req);
+  const scopeIds = new Set(getWordsByTag(profile.scopeTag).map((word) => word.id));
+  const rows = database.latestWordReviewRows(config.reviewScoreThreshold, profile.kind);
   res.json({
+    profile: profile.kind,
     threshold: config.reviewScoreThreshold,
     words: rows
       .filter((row) => scopeIds.has(row.word_id))
@@ -344,11 +378,12 @@ app.get("/api/word-audio/:wordId", requireAuth, async (req, res) => {
 });
 
 app.post("/api/word-sessions/start", requireAuth, (req, res) => {
-  const tag = String(req.body?.tag || DEFAULT_WORD_SCOPE_TAG);
+  const profile = wordProfileFromRequest(req);
+  const tag = profile.scopeTag;
   const mode = req.body?.mode === "review" ? "review" : "new";
   const levelId = req.body?.levelId ? String(req.body.levelId) : null;
-  const limit = database.getWordBatchSize();
-  const words = levelId ? selectWordLevelWords(levelId, mode) : selectWordSessionWords(tag, mode, limit);
+  const limit = database.getWordBatchSize(profile.kind);
+  const words = levelId ? selectWordLevelWords(levelId, mode, profile.kind) : selectWordSessionWords(tag, mode, limit, profile.kind);
   if (words.length === 0) {
     res.status(404).json({ error: mode === "review" ? "这一关暂时没有需要复习的单词了。" : "没有找到可练习的单词。" });
     return;
@@ -357,14 +392,15 @@ app.post("/api/word-sessions/start", requireAuth, (req, res) => {
   // 复习会话单独成会话（mode='review'），与整关重练（mode='level'）的进度互不覆盖。
   const session = levelId
     ? mode === "review"
-      ? database.startOrResumeWordSession(words, tag, "review", levelId, config.reviewScoreThreshold)
-      : database.startOrResumeWordSession(words, tag, "level", levelId, config.reviewScoreThreshold)
-    : database.startWordSession(words, tag, mode);
+      ? database.startOrResumeWordSession(words, tag, "review", levelId, config.reviewScoreThreshold, profile.kind)
+      : database.startOrResumeWordSession(words, tag, "level", levelId, config.reviewScoreThreshold, profile.kind)
+    : database.startWordSession(words, tag, mode, null, profile.kind);
   const resume = ("resume" in session ? session.resume : null) as WordSessionResume | null;
   const resumed = "resumed" in session ? session.resumed : false;
   const resumeWord = resume && resume.phase === "example" ? words[resume.itemNo - 1] : null;
   res.json({
     sessionId: session.sessionId,
+    profile: profile.kind,
     scopeTag: session.scopeTag,
     mode: session.mode,
     levelId,
@@ -380,8 +416,71 @@ app.post("/api/word-sessions/start", requireAuth, (req, res) => {
   });
 });
 
+app.post("/api/word-sessions/:sessionId/summary", requireAuth, (req, res) => {
+  const profile = wordProfileFromRequest(req);
+  const sessionId = Number(req.params.sessionId);
+  if (!Number.isInteger(sessionId) || sessionId <= 0) {
+    res.status(400).json({ error: "这次词汇练习记录无效。" });
+    return;
+  }
+
+  const session = database.getWordSession(sessionId);
+  if (!session) {
+    res.status(404).json({ error: "没有找到这次词汇练习记录。" });
+    return;
+  }
+  if (session.practice_kind !== profile.kind || session.scope_tag !== profile.scopeTag) {
+    res.status(400).json({ error: "这次词汇练习类型和单词不匹配。" });
+    return;
+  }
+  if (profile.kind !== "senior") {
+    res.status(400).json({ error: "只有高考词汇练习需要整组总结。" });
+    return;
+  }
+
+  database.completeWordSessionIfReady(sessionId, config.reviewScoreThreshold);
+  const summary = database.getWordSessionSummary(sessionId);
+  if (!summary || summary.submittedCount < summary.session.word_count || summary.session.status !== "completed") {
+    res.status(409).json({ error: "这一组还没有全部完成。" });
+    return;
+  }
+
+  const wallet = database.settleSeniorWordSessionWallet(sessionId);
+  const walletSettings = database.getWalletSettings();
+  res.json({
+    profile: profile.kind,
+    sessionId,
+    mode: summary.session.mode,
+    levelId: summary.session.level_id,
+    wordCount: summary.session.word_count,
+    submittedCount: summary.submittedCount,
+    errorCount: summary.errorCount,
+    averageScore: summary.averageScore,
+    displayAverageScore: summary.averageScore === null ? null : Math.round(summary.averageScore),
+    rewardAverageAbove: walletSettings.seniorWordRewardAverageAbove,
+    penaltyAverageBelow: walletSettings.seniorWordPenaltyAverageBelow,
+    wallet,
+    items: summary.items.map((item) => {
+      const word = getWord(item.wordId);
+      return {
+        itemNo: item.itemNo,
+        wordId: item.wordId,
+        name: word?.name || item.wordId,
+        definitions: word?.definitions.map((definition) => ({
+          partOfSpeech: definition.partOfSpeech,
+          meaning: definition.meaning
+        })) || [],
+        score: item.score,
+        level: item.level,
+        errorSummary: item.errorSummary
+      };
+    })
+  });
+});
+
 app.post("/api/word-submissions", requireAuth, async (req, res, next) => {
   try {
+    const profile = wordProfileFromRequest(req);
     const sessionId = req.body?.sessionId ? Number(req.body.sessionId) : null;
     const wordId = String(req.body?.wordId || "");
     const phase = req.body?.phase === "example" ? "example" : "word";
@@ -397,9 +496,18 @@ app.post("/api/word-submissions", requireAuth, async (req, res, next) => {
         res.status(400).json({ error: "这次词汇练习记录和单词不匹配。" });
         return;
       }
+      if (session.practice_kind !== profile.kind || session.scope_tag !== profile.scopeTag) {
+        res.status(400).json({ error: "这次词汇练习类型和单词不匹配。" });
+        return;
+      }
     }
 
-    if (phase === "example" && (database.latestWordPhaseScore(wordId, "word") ?? 0) < config.reviewScoreThreshold) {
+    if (phase === "example" && !profile.includesExamples) {
+      res.status(400).json({ error: "高考词汇练习不需要默写例句。" });
+      return;
+    }
+
+    if (phase === "example" && (database.latestWordPhaseScore(wordId, "word", profile.kind) ?? 0) < config.reviewScoreThreshold) {
       res.status(400).json({ error: "请先通过单词和中文释义默写，再练例句。" });
       return;
     }
@@ -422,6 +530,7 @@ app.post("/api/word-submissions", requireAuth, async (req, res, next) => {
         : await gradeExampleRecall(currentGradeConfig(), word, exampleAnswers);
     const submissionId = database.saveWordSubmission({
       sessionId,
+      practiceKind: profile.kind,
       wordId,
       phase,
       wordAnswer: phase === "word" ? wordAnswer : null,
@@ -430,16 +539,21 @@ app.post("/api/word-submissions", requireAuth, async (req, res, next) => {
       grade
     });
     const sessionComplete = sessionId ? database.completeWordSessionIfReady(sessionId, config.reviewScoreThreshold) : false;
-    const wallet = database.settleSubmissionWallet({
-      source: "word",
-      wordId,
-      phase,
-      submissionId,
-      score: grade.score,
-      errorSummary: grade.errorSummary
-    });
+    const wallet =
+      profile.kind === "senior"
+        ? null
+        : database.settleSubmissionWallet({
+            source: "word",
+            practiceKind: profile.kind,
+            wordId,
+            phase,
+            submissionId,
+            score: grade.score,
+            errorSummary: grade.errorSummary
+          });
 
     res.json({
+      profile: profile.kind,
       wordId,
       phase,
       grade,
@@ -699,8 +813,14 @@ function parseIssues(raw: string): string[] {
   }
 }
 
-function getWordScopeDisplayTotal(fallback: number): number {
-  return getWordBank().zhongkao?.matchedSourceRows || fallback || getWordBank().totalWords;
+function wordProfileFromRequest(req: Request) {
+  const rawProfile = typeof req.query.profile === "string" ? req.query.profile : String(req.body?.profile || "");
+  return WORD_PROFILES[rawProfile === "senior" ? "senior" : "junior"];
+}
+
+function getWordScopeDisplayTotal(fallback: number, practiceKind: WordPracticeKind): number {
+  if (practiceKind === "junior") return getWordBank().zhongkao?.matchedSourceRows || fallback || getWordBank().totalWords;
+  return fallback || getWordBank().totalWords;
 }
 
 function generatedAudioDirWritable(): boolean {
@@ -713,13 +833,13 @@ function generatedAudioDirWritable(): boolean {
   }
 }
 
-function buildWordLevelGroups() {
-  const practiced = database.practicedWordIds();
-  const mastered = database.masteredWordIds(config.reviewScoreThreshold);
-  const reviewIds = new Set(database.latestWordReviewRows(config.reviewScoreThreshold).map((row) => row.word_id));
-  const attemptStats = database.wordLevelAttemptStats();
+function buildWordLevelGroups(practiceKind: WordPracticeKind) {
+  const practiced = database.practicedWordIds(practiceKind);
+  const mastered = database.masteredWordIds(config.reviewScoreThreshold, practiceKind);
+  const reviewIds = new Set(database.latestWordReviewRows(config.reviewScoreThreshold, practiceKind).map((row) => row.word_id));
+  const attemptStats = database.wordLevelAttemptStats(practiceKind);
 
-  return getWordLevelChunks().map((group) => ({
+  return getWordLevelChunks(practiceKind).map((group) => ({
     letter: group.letter,
     totalWords: group.words.length,
     masteredWords: group.words.filter((word) => mastered.has(word.id)).length,
@@ -747,9 +867,9 @@ function buildWordLevelGroups() {
   }));
 }
 
-function selectWordLevelWords(levelId: string, mode: "new" | "review" = "new"): WordEntry[] {
+function selectWordLevelWords(levelId: string, mode: "new" | "review" = "new", practiceKind: WordPracticeKind): WordEntry[] {
   let levelWords: WordEntry[] = [];
-  for (const group of getWordLevelChunks()) {
+  for (const group of getWordLevelChunks(practiceKind)) {
     const level = group.levels.find((item) => item.id === levelId);
     if (level) {
       levelWords = level.words;
@@ -759,12 +879,12 @@ function selectWordLevelWords(levelId: string, mode: "new" | "review" = "new"): 
   if (mode !== "review") return levelWords;
 
   // 复习模式：只保留该关里最新分低于阈值的错词。
-  const reviewIds = new Set(database.latestWordReviewRows(config.reviewScoreThreshold).map((row) => row.word_id));
+  const reviewIds = new Set(database.latestWordReviewRows(config.reviewScoreThreshold, practiceKind).map((row) => row.word_id));
   return levelWords.filter((word) => reviewIds.has(word.id));
 }
 
-function getWordLevelChunks() {
-  const words = getWordsByTag(DEFAULT_WORD_SCOPE_TAG);
+function getWordLevelChunks(practiceKind: WordPracticeKind) {
+  const words = getWordsByTag(WORD_PROFILES[practiceKind].scopeTag);
   const byLetter = new Map<string, WordEntry[]>();
   for (const word of words) {
     const letter = firstWordLetter(word);
@@ -776,7 +896,7 @@ function getWordLevelChunks() {
     .map(([letter, groupWords]) => ({
       letter,
       words: groupWords,
-      levels: chunkWords(groupWords, WORD_LEVEL_SIZE).map((chunk, index) => ({
+      levels: chunkWords(groupWords, database.getWordBatchSize(practiceKind)).map((chunk, index) => ({
         id: `${letter}-${index + 1}`,
         levelNo: index + 1,
         words: chunk
@@ -797,19 +917,19 @@ function chunkWords(words: WordEntry[], size: number): WordEntry[][] {
   return chunks;
 }
 
-function selectWordSessionWords(tag: string, mode: "new" | "review", limit: number) {
+function selectWordSessionWords(tag: string, mode: "new" | "review", limit: number, practiceKind: WordPracticeKind) {
   const candidates = getWordsByTag(tag);
   const candidateIds = new Set(candidates.map((word) => word.id));
   if (mode === "review") {
     return database
-      .latestWordReviewRows(config.reviewScoreThreshold)
+      .latestWordReviewRows(config.reviewScoreThreshold, practiceKind)
       .map((row) => getWord(row.word_id))
       .filter((word): word is NonNullable<typeof word> => Boolean(word && candidateIds.has(word.id)))
       .slice(0, limit);
   }
 
-  const mastered = database.masteredWordIds(config.reviewScoreThreshold);
-  const reviewIds = new Set(database.latestWordReviewRows(config.reviewScoreThreshold).map((row) => row.word_id));
+  const mastered = database.masteredWordIds(config.reviewScoreThreshold, practiceKind);
+  const reviewIds = new Set(database.latestWordReviewRows(config.reviewScoreThreshold, practiceKind).map((row) => row.word_id));
   const fresh = candidates.filter((word) => !mastered.has(word.id) && !reviewIds.has(word.id));
   return (fresh.length ? fresh : candidates).slice(0, limit);
 }

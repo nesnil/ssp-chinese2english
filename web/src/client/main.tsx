@@ -125,6 +125,7 @@ type ActivityCalendarData = {
 };
 
 type WordProgress = {
+  profile?: WordPracticeProfile;
   threshold: number;
   scopeTag?: string;
   totalWords: number;
@@ -143,7 +144,11 @@ type WordCatalogTag = {
 };
 
 type WordCatalog = {
+  profile?: WordPracticeProfile;
   title: string;
+  heroTitle?: string;
+  subtitle?: string;
+  includesExamples?: boolean;
   totalWords: number;
   missingAudioCount: number;
   tags: WordCatalogTag[];
@@ -172,6 +177,11 @@ type WordLevelGroup = {
   levels: WordLevel[];
 };
 
+type WordLevelData = {
+  levelSize?: number;
+  groups: WordLevelGroup[];
+};
+
 type WordPrompt = {
   id: string;
   itemNo: number;
@@ -197,6 +207,31 @@ type WordDetails = {
   examples: WordExampleItem[];
   tags: string[];
   hasAudio: boolean;
+};
+
+type WordPracticeProfile = "junior" | "senior";
+
+type SeniorWordSummaryItem = {
+  itemNo: number;
+  wordId: string;
+  name: string;
+  definitions: Array<{ partOfSpeech: string; meaning: string }>;
+  score: number | null;
+  level: string | null;
+  errorSummary: string | null;
+};
+
+type SeniorWordSessionSummary = {
+  sessionId: number;
+  wordCount: number;
+  submittedCount: number;
+  errorCount: number;
+  averageScore: number | null;
+  displayAverageScore: number | null;
+  rewardAverageAbove: number;
+  penaltyAverageBelow: number;
+  wallet: WalletChange;
+  items: SeniorWordSummaryItem[];
 };
 
 type ReviewHistorySummary = {
@@ -275,6 +310,10 @@ type WalletSummary = {
 };
 
 const DEFAULT_WORD_SCOPE_TAG = "shanghai-zhongkao";
+const WORD_PROFILE_LABELS: Record<WordPracticeProfile, { tab: string; fallbackTitle: string; fallbackHero: string }> = {
+  junior: { tab: "中考词汇练习", fallbackTitle: "上海初中英语考纲词汇", fallbackHero: "听发音，默写单词和例句" },
+  senior: { tab: "高考词汇练习", fallbackTitle: "高考词汇练习", fallbackHero: "听发音，默写单词和中文意思" }
+};
 
 // Injected at build time from the latest git tag (see vite.config.ts).
 const APP_VERSION = typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "dev";
@@ -284,12 +323,13 @@ function App() {
   const [catalog, setCatalog] = useState<SeasonCatalog[]>([]);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [wordProgress, setWordProgress] = useState<WordProgress | null>(null);
+  const [seniorWordProgress, setSeniorWordProgress] = useState<WordProgress | null>(null);
   const [activeDay, setActiveDay] = useState<{ season: number; day: number } | null>(null);
   const [reviewMode, setReviewMode] = useState<"center" | "practice" | null>(null);
   const [walletOpen, setWalletOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
   const [wallet, setWallet] = useState<WalletSummary | null>(null);
-  const [homeMode, setHomeMode] = useState<"sentences" | "words">("sentences");
+  const [homeMode, setHomeMode] = useState<"sentences" | "juniorWords" | "seniorWords">("sentences");
   const [role, setRole] = useState<"user" | "admin">("user");
   const [adminMode, setAdminMode] = useState(() => typeof location !== "undefined" && location.hash === "#admin");
   const [loading, setLoading] = useState(true);
@@ -299,16 +339,18 @@ function App() {
     setLoading(true);
     setError("");
     try {
-      const [catalogResponse, progressResponse, wordProgressResponse, meResponse, walletResponse] = await Promise.all([
+      const [catalogResponse, progressResponse, wordProgressResponse, seniorWordProgressResponse, meResponse, walletResponse] = await Promise.all([
         api("/api/catalog"),
         api("/api/progress"),
-        api("/api/word/progress"),
+        api("/api/word/progress?profile=junior"),
+        api("/api/word/progress?profile=senior"),
         api("/api/me"),
         api("/api/wallet")
       ]);
       setCatalog(catalogResponse.seasons);
       setProgress(progressResponse);
       setWordProgress(wordProgressResponse);
+      setSeniorWordProgress(seniorWordProgressResponse);
       setWallet(walletResponse);
       setRole(meResponse.role === "admin" ? "admin" : "user");
       setAuthenticated(true);
@@ -438,7 +480,13 @@ function App() {
         <button className="icon-button activity-entry-button" onClick={() => setActivityOpen(true)} title="每日完成情况" aria-label="每日完成情况">
           <CalendarDays size={21} />
         </button>
-        <HomeTabs active={homeMode} onChange={setHomeMode} progress={progress} wordProgress={wordProgress} />
+        <HomeTabs
+          active={homeMode}
+          onChange={setHomeMode}
+          progress={progress}
+          wordProgress={wordProgress}
+          seniorWordProgress={seniorWordProgress}
+        />
       </div>
       {homeMode === "sentences" ? (
         <Dashboard
@@ -449,6 +497,8 @@ function App() {
         />
       ) : (
         <WordPracticeScreen
+          key={homeMode}
+          profile={homeMode === "seniorWords" ? "senior" : "junior"}
           initialMode="new"
           embedded
           onBack={() => setHomeMode("sentences")}
@@ -575,12 +625,14 @@ function HomeTabs({
   active,
   onChange,
   progress,
-  wordProgress
+  wordProgress,
+  seniorWordProgress
 }: {
-  active: "sentences" | "words";
-  onChange: (value: "sentences" | "words") => void;
+  active: "sentences" | "juniorWords" | "seniorWords";
+  onChange: (value: "sentences" | "juniorWords" | "seniorWords") => void;
   progress: Progress | null;
   wordProgress: WordProgress | null;
+  seniorWordProgress: WordProgress | null;
 }) {
   return (
     <nav className="home-tabs" aria-label="练习类型">
@@ -589,10 +641,15 @@ function HomeTabs({
         中译英
         {progress?.reviewCount ? <span>{progress.reviewCount}</span> : null}
       </button>
-      <button className={active === "words" ? "active" : ""} onClick={() => onChange("words")}>
+      <button className={active === "juniorWords" ? "active" : ""} onClick={() => onChange("juniorWords")}>
         <BookOpen size={19} />
-        词汇练习
+        中考词汇练习
         {wordProgress?.reviewWords ? <span>{wordProgress.reviewWords}</span> : null}
+      </button>
+      <button className={active === "seniorWords" ? "active" : ""} onClick={() => onChange("seniorWords")}>
+        <BookOpen size={19} />
+        高考词汇练习
+        {seniorWordProgress?.reviewWords ? <span>{seniorWordProgress.reviewWords}</span> : null}
       </button>
     </nav>
   );
@@ -965,7 +1022,7 @@ function PracticeScreen({ season, day, onBack }: { season: number; day: number; 
 }
 
 const WALLET_TX_LABELS: Record<string, string> = {
-  reward: "满分奖励",
+  reward: "练习奖励",
   penalty: "答题扣除",
   withdraw: "提现",
   adjust: "家长调整"
@@ -989,6 +1046,7 @@ function walletTxCaption(tx: WalletTx): string {
   if (!tx.refId) return "";
   const match = tx.refId.match(/^S(\d+)-D(\d+)-Q(\d+)$/);
   if (match) return `${questionSeasonLabel(match[1])} Day ${match[2]} 第 ${match[3]} 题`;
+  if (tx.source === "senior-word-session") return "高考词汇练习 · 整组平均分";
   if (tx.source === "word") return tx.refId.endsWith(":example") ? "单词练习 · 例句" : "单词练习 · 默写";
   return "";
 }
@@ -1672,11 +1730,13 @@ function ReviewScreen({ onBack }: { onBack: () => void }) {
 }
 
 function WordPracticeScreen({
+  profile,
   initialMode,
   onBack,
   embedded = false,
   onWalletBalance
 }: {
+  profile: WordPracticeProfile;
   initialMode: "new" | "review";
   onBack: () => void;
   embedded?: boolean;
@@ -1686,6 +1746,7 @@ function WordPracticeScreen({
   const [catalog, setCatalog] = useState<WordCatalog | null>(null);
   const [progress, setProgress] = useState<WordProgress | null>(null);
   const [levelGroups, setLevelGroups] = useState<WordLevelGroup[]>([]);
+  const [levelSize, setLevelSize] = useState(5);
   const [activeLevelId, setActiveLevelId] = useState<string | null>(null);
   const [batchSize, setBatchSize] = useState(5);
   const [tag, setTag] = useState(DEFAULT_WORD_SCOPE_TAG);
@@ -1700,6 +1761,7 @@ function WordPracticeScreen({
   const [exampleAnswers, setExampleAnswers] = useState<string[]>([]);
   const [exampleGrade, setExampleGrade] = useState<Grade | null>(null);
   const [exampleWallet, setExampleWallet] = useState<WalletChange | null>(null);
+  const [seniorSummary, setSeniorSummary] = useState<SeniorWordSessionSummary | null>(null);
   const [details, setDetails] = useState<WordDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -1708,12 +1770,19 @@ function WordPracticeScreen({
   useEffect(() => {
     let mounted = true;
     setLoading(true);
-    Promise.all([api("/api/word/catalog"), api("/api/word/progress"), api("/api/word/settings"), api("/api/word/levels")])
+    const query = wordProfileQuery(profile);
+    Promise.all([
+      api(`/api/word/catalog?${query}`),
+      api(`/api/word/progress?${query}`),
+      api(`/api/word/settings?${query}`),
+      api(`/api/word/levels?${query}`)
+    ])
       .then(async ([catalogData, progressData, settingsData, levelData]) => {
         if (!mounted) return;
         setCatalog(catalogData);
         setProgress(progressData);
         setLevelGroups(levelData.groups || []);
+        setLevelSize(levelData.levelSize || settingsData.batchSize || (profile === "senior" ? 10 : 5));
         setBatchSize(settingsData.batchSize || 5);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "词汇练习加载失败"))
@@ -1721,13 +1790,17 @@ function WordPracticeScreen({
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [profile]);
 
   const word = words[current];
   const threshold = progress?.threshold || 80;
   const wordPassed = Boolean(wordGrade && wordGrade.score >= threshold);
   const practiceStarted = Boolean(sessionId);
   const reviewing = mode === "review";
+  const includesExamples = catalog?.includesExamples !== false;
+  const profileText = WORD_PROFILE_LABELS[profile];
+  const catalogTitle = catalog?.title || profileText.fallbackTitle;
+  const heroTitle = catalog?.heroTitle || profileText.fallbackHero;
   const wordMasteredPercent = ((progress?.masteredWords || 0) / (progress?.totalWords || 1650)) * 100;
   const wordMasteredPercentLabel =
     wordMasteredPercent > 0 && wordMasteredPercent < 1 ? `${wordMasteredPercent.toFixed(1)}%` : `${Math.round(wordMasteredPercent)}%`;
@@ -1737,19 +1810,20 @@ function WordPracticeScreen({
   async function startSession(nextMode = mode, nextTag = tag, nextLevelId: string | null = null) {
     setError("");
     setCurrent(0);
+    setSeniorSummary(null);
     resetWordState();
     try {
       const data = await api("/api/word-sessions/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: nextMode, tag: nextTag, levelId: nextLevelId })
+        body: JSON.stringify({ profile, mode: nextMode, tag: nextTag, levelId: nextLevelId })
       });
       setSessionId(data.sessionId);
       const loadedWords = data.words || [];
       const resume = data.resume as WordSessionResume | null;
       setWords(loadedWords);
       setMode(nextMode);
-      setTag(nextTag);
+      setTag(data.scopeTag || nextTag);
       setActiveLevelId(data.levelId || nextLevelId);
       if (resume) {
         setCurrent(Math.max(0, Math.min(loadedWords.length, resume.itemNo - 1)));
@@ -1760,20 +1834,29 @@ function WordPracticeScreen({
           setDetails(resume.details || null);
         } else if (resume.phase === "complete") {
           setCurrent(loadedWords.length);
+          if (profile === "senior") {
+            await loadSeniorSummary(data.sessionId);
+          }
         }
       }
     } catch (err) {
       setSessionId(null);
       setWords([]);
+      setSeniorSummary(null);
       setError(err instanceof Error ? err.message : "词汇练习开始失败");
     }
   }
 
   async function refreshWordProgress() {
     try {
-      const [progressData, levelData] = await Promise.all([api("/api/word/progress"), api("/api/word/levels")]);
+      const query = wordProfileQuery(profile);
+      const [progressData, levelData] = (await Promise.all([
+        api(`/api/word/progress?${query}`),
+        api(`/api/word/levels?${query}`)
+      ])) as [WordProgress, WordLevelData];
       setProgress(progressData);
       setLevelGroups(levelData.groups || []);
+      if (levelData.levelSize) setLevelSize(levelData.levelSize);
     } catch {
       // Keep the current practice flow uninterrupted if the summary refresh fails.
     }
@@ -1810,12 +1893,21 @@ function WordPracticeScreen({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sessionId,
+          profile,
           wordId: word.id,
           phase: "word",
           wordAnswer,
           meaningAnswers
         })
       });
+      if (profile === "senior" && response.sessionComplete) {
+        setDetails(response.details);
+        await refreshWordProgress();
+        await loadSeniorSummary(sessionId);
+        setCurrent(words.length);
+        resetWordState();
+        return;
+      }
       setWordGrade(response.grade);
       setWordWallet(response.wallet || null);
       if (response.wallet && onWalletBalance) onWalletBalance(response.wallet.balance);
@@ -1839,6 +1931,7 @@ function WordPracticeScreen({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sessionId,
+          profile,
           wordId: word.id,
           phase: "example",
           exampleAnswers: Array.from({ length: exampleCount }, (_, index) => exampleAnswers[index] || "")
@@ -1861,11 +1954,21 @@ function WordPracticeScreen({
     setCurrent((value) => value + 1);
   }
 
+  async function loadSeniorSummary(nextSessionId = sessionId) {
+    if (!nextSessionId) return;
+    const summary = (await api(`/api/word-sessions/${nextSessionId}/summary?${wordProfileQuery("senior")}`, {
+      method: "POST"
+    })) as SeniorWordSessionSummary;
+    setSeniorSummary(summary);
+    if (summary.wallet && onWalletBalance) onWalletBalance(summary.wallet.balance);
+  }
+
   async function returnToWordMap() {
     setSessionId(null);
     setWords([]);
     setCurrent(0);
     setActiveLevelId(null);
+    setSeniorSummary(null);
     resetWordState();
     await refreshWordProgress();
   }
@@ -1878,7 +1981,7 @@ function WordPracticeScreen({
             返回地图
           </button>
           <div>
-            <strong>上海初中英语考纲词汇</strong>
+            <strong>{catalogTitle}</strong>
             <span>{mode === "review" ? "词汇复习" : `每次 ${batchSize} 词`}</span>
           </div>
         </header>
@@ -1887,9 +1990,9 @@ function WordPracticeScreen({
           <div>
             <span className="eyebrow">
               <BookOpen size={16} />
-              上海初中英语考纲词汇
+              {catalogTitle}
             </span>
-            <h1>听发音，默写单词和例句</h1>
+            <h1>{heroTitle}</h1>
             <p className="word-hero-sub">
               已掌握 {progress?.masteredWords || 0} / {progress?.totalWords || 1650} 个词
               {progress?.reviewWords ? ` · 待复习 ${progress.reviewWords} 个` : ""}
@@ -1918,6 +2021,7 @@ function WordPracticeScreen({
       {!loading && !practiceStarted && levelGroups.length ? (
         <WordLevelMap
           groups={levelGroups}
+          levelSize={levelSize}
           activeLevelId={activeLevelId}
           onSelect={(levelId) => startSession("new", tag, levelId)}
         />
@@ -1926,7 +2030,7 @@ function WordPracticeScreen({
       {!loading && !practiceStarted && !levelGroups.length ? (
         <section className="finish-card">
           <Trophy size={56} />
-          <h1>词汇闯关表加载失败</h1>
+          <h1>{profileText.tab}闯关表加载失败</h1>
           <p>稍后刷新页面再试。</p>
         </section>
       ) : null}
@@ -1942,17 +2046,21 @@ function WordPracticeScreen({
           </button>
         </section>
       ) : complete ? (
-        <section className="finish-card">
-          <Trophy size={56} />
-          <h1>这一关练完啦</h1>
-          <p>
-            已掌握 {progress?.masteredWords || 0} 个词，待复习 {progress?.reviewWords || 0} 个词。
-          </p>
-          <button className="primary-button" onClick={returnToWordMap}>
-            <Flag size={20} />
-            回到词汇闯关表
-          </button>
-        </section>
+        profile === "senior" && seniorSummary ? (
+          <SeniorWordSummaryCard summary={seniorSummary} onDone={returnToWordMap} />
+        ) : (
+          <section className="finish-card">
+            <Trophy size={56} />
+            <h1>这一关练完啦</h1>
+            <p>
+              已掌握 {progress?.masteredWords || 0} 个词，待复习 {progress?.reviewWords || 0} 个词。
+            </p>
+            <button className="primary-button" onClick={returnToWordMap}>
+              <Flag size={20} />
+              回到词汇闯关表
+            </button>
+          </section>
+        )
       ) : word ? (
         <section className="question-card word-card">
           <div className="question-topline">
@@ -2012,12 +2120,12 @@ function WordPracticeScreen({
               wallet={wordWallet}
               onNext={nextWord}
               isLast={current === words.length - 1}
-              nextLabel={wordPassed ? "继续例句" : current === words.length - 1 ? "完成这一组" : "下一词"}
-              hideNext={wordPassed}
+              nextLabel={includesExamples && wordPassed ? "继续例句" : current === words.length - 1 ? "完成这一组" : "下一词"}
+              hideNext={includesExamples && wordPassed}
             />
           )}
 
-          {wordPassed && details ? (
+          {includesExamples && wordPassed && details ? (
             <section className="example-panel">
               <div className="question-topline">
                 <span>例句默写{details.examples.length > 1 ? ` · 共 ${details.examples.length} 句` : ""}</span>
@@ -2079,12 +2187,71 @@ function WordPracticeScreen({
   );
 }
 
+function SeniorWordSummaryCard({ summary, onDone }: { summary: SeniorWordSessionSummary; onDone: () => void }) {
+  const average = summary.displayAverageScore ?? Math.round(summary.averageScore || 0);
+  const rewardText =
+    summary.errorCount > 0
+      ? "有单词批改失败，本组不奖不扣。"
+      : summary.wallet.reason === "perfect" && summary.wallet.change > 0
+        ? `平均分达到奖励线，奖励 ${formatYuan(summary.wallet.change)}。`
+        : summary.wallet.reason === "fail" && summary.wallet.change < 0
+          ? `平均分低于扣钱线，扣除 ${formatYuan(-summary.wallet.change)}。`
+          : `平均分在 ${summary.penaltyAverageBelow} 到 ${summary.rewardAverageAbove} 之间，本组不奖不扣。`;
+  const summaryClass =
+    summary.wallet.change > 0 ? "gain" : summary.wallet.change < 0 ? "loss" : summary.errorCount > 0 ? "error" : "neutral";
+
+  return (
+    <section className="senior-summary-card">
+      <div className={`senior-summary-hero ${summaryClass}`}>
+        <div className="score-bubble">
+          <strong>{average}</strong>
+          <span>平均分</span>
+        </div>
+        <div>
+          <span className="eyebrow">
+            <Trophy size={16} />
+            高考词汇练习
+          </span>
+          <h1>本组练习总结</h1>
+          <p>
+            已完成 {summary.submittedCount} / {summary.wordCount} 个词，奖励线 {summary.rewardAverageAbove} 分，扣钱线 {summary.penaltyAverageBelow} 分。
+          </p>
+          <p className={`money-note ${summary.wallet.change > 0 ? "gain" : summary.wallet.change < 0 ? "loss" : ""}`}>{rewardText}</p>
+        </div>
+      </div>
+
+      <div className="senior-summary-list">
+        {summary.items.map((item) => (
+          <article key={item.wordId} className="senior-summary-row">
+            <span className="senior-summary-no">{item.itemNo}</span>
+            <div className="senior-summary-word">
+              <strong>{item.name}</strong>
+              <small>{formatDefinitionSummary(item.definitions)}</small>
+              {item.errorSummary ? <em>批改失败：{item.errorSummary}</em> : null}
+            </div>
+            <b className={summaryScoreClass(item.score)}>{item.score === null ? "--" : item.score}</b>
+          </article>
+        ))}
+      </div>
+
+      <div className="admin-form-actions senior-summary-actions">
+        <button className="primary-button" onClick={onDone}>
+          <Flag size={20} />
+          完成本组练习
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function WordLevelMap({
   groups,
+  levelSize,
   activeLevelId,
   onSelect
 }: {
   groups: WordLevelGroup[];
+  levelSize: number;
   activeLevelId: string | null;
   onSelect: (levelId: string) => void;
 }) {
@@ -2092,7 +2259,7 @@ function WordLevelMap({
     <section className="map-section word-map-section">
       <div className="section-title">
         <h2>词汇闯关表</h2>
-        <span>A-Z 分组 · 5 词一关</span>
+        <span>A-Z 分组 · {levelSize} 词一关</span>
       </div>
       <div className="season-stack word-letter-stack">
         {groups.map((group) => (
@@ -2328,13 +2495,24 @@ function AdminRangeSetting({
           <span>{description}</span>
         </div>
         <div className="admin-range-values">
-          <b>
-            {lowLabel} {lowValue}
+          <b className="high">
+            {highLabel} {highValue}
+            {mode === "score" ? " " : ""}
             {unit}
           </b>
-          <b>
-            {highLabel} {highValue}
-            {unit}
+          <b className="low">
+            {mode === "score" ? (
+              <>
+                低于 {lowValue}
+                {" "}
+                {unit}扣钱
+              </>
+            ) : (
+              <>
+                {lowLabel} {lowValue}
+                {unit}
+              </>
+            )}
           </b>
         </div>
       </div>
@@ -2361,32 +2539,12 @@ function AdminRangeSetting({
           onChange={(event) => onHighChange(Math.max(Number(event.target.value), lowValue))}
           aria-label={highLabel}
         />
-      </div>
-      <div className="admin-range-scale">
         {mode === "score" ? (
-          <>
-            <span>
-              {max}
-              {unit}
-            </span>
-            <span>不奖不扣</span>
-            <span>
-              {min}
-              {unit}
-            </span>
-          </>
-        ) : (
-          <>
-            <span>
-              {min}
-              {unit}
-            </span>
-            <span>
-              {max}
-              {unit}
-            </span>
-          </>
-        )}
+          <div className="range-thumb-label-rail" aria-hidden="true">
+            <span className="range-thumb-label high">{highValue}</span>
+            <span className="range-thumb-label low">{lowValue}</span>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -2480,12 +2638,11 @@ function AdminMoneyRangeSetting({
               onChange={(event) => onRewardHighChange(Math.max(Number(event.target.value), rewardMin))}
               aria-label="奖励金额上限"
             />
+            <div className="money-thumb-label-rail" aria-hidden="true">
+              <span className="money-thumb-label low">{rewardMin}</span>
+              {rewardMax !== rewardMin ? <span className="money-thumb-label high">{rewardMax}</span> : null}
+            </div>
           </div>
-        </div>
-        <div className="admin-money-scale">
-          <span>1元</span>
-          <span>同一金额尺</span>
-          <span>10元</span>
         </div>
         <div className="money-lane penalty" style={penaltyStyle}>
           <div className="money-lane-meta">
@@ -2518,6 +2675,10 @@ function AdminMoneyRangeSetting({
               onChange={(event) => onPenaltyHighChange(Math.max(Number(event.target.value), penaltyMin))}
               aria-label="低分扣除金额上限"
             />
+            <div className="money-thumb-label-rail" aria-hidden="true">
+              <span className="money-thumb-label low">{penaltyMin}</span>
+              {penaltyMax !== penaltyMin ? <span className="money-thumb-label high">{penaltyMax}</span> : null}
+            </div>
           </div>
         </div>
       </div>
@@ -2674,7 +2835,7 @@ function AdminLoginScreen({ onLogin, onCancel }: { onLogin: () => void; onCancel
 }
 
 function AdminApp({ onExit }: { onExit: () => void }) {
-  const [section, setSection] = useState<"questions" | "words" | "model" | "wallet">("questions");
+  const [section, setSection] = useState<"questions" | "words" | "practice" | "model" | "wallet">("questions");
 
   return (
     <main className="app-shell admin-shell">
@@ -2704,6 +2865,10 @@ function AdminApp({ onExit }: { onExit: () => void }) {
           <BookOpen size={19} />
           单词
         </button>
+        <button className={section === "practice" ? "active" : ""} onClick={() => setSection("practice")}>
+          <ListChecks size={19} />
+          练习
+        </button>
         <button className={section === "model" ? "active" : ""} onClick={() => setSection("model")}>
           <Settings size={19} />
           模型
@@ -2717,6 +2882,8 @@ function AdminApp({ onExit }: { onExit: () => void }) {
         <AdminQuestions />
       ) : section === "words" ? (
         <AdminWords />
+      ) : section === "practice" ? (
+        <AdminPracticeSettings />
       ) : section === "model" ? (
         <AdminModelSettings />
       ) : (
@@ -2733,6 +2900,109 @@ function useDebounced<T>(value: T, delay = 300): T {
     return () => clearTimeout(timer);
   }, [value, delay]);
   return debounced;
+}
+
+function AdminPracticeSettings() {
+  const [juniorBatchSize, setJuniorBatchSize] = useState("5");
+  const [seniorBatchSize, setSeniorBatchSize] = useState("10");
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  async function load() {
+    setLoading(true);
+    setError("");
+    try {
+      const [junior, senior] = await Promise.all([
+        api(`/api/word/settings?${wordProfileQuery("junior")}`),
+        api(`/api/word/settings?${wordProfileQuery("senior")}`)
+      ]);
+      setJuniorBatchSize(String(junior.batchSize || 5));
+      setSeniorBatchSize(String(senior.batchSize || 10));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "练习配置加载失败");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    setSubmitting(true);
+    setError("");
+    setSaved(false);
+    try {
+      const body = (batchSize: string) => ({
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ batchSize: Number(batchSize) })
+      });
+      const [junior, senior] = await Promise.all([
+        api(`/api/word/settings?${wordProfileQuery("junior")}`, body(juniorBatchSize)),
+        api(`/api/word/settings?${wordProfileQuery("senior")}`, body(seniorBatchSize))
+      ]);
+      setJuniorBatchSize(String(junior.batchSize || 5));
+      setSeniorBatchSize(String(senior.batchSize || 10));
+      setSaved(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "练习配置保存失败");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <section className="admin-panel">
+      <div className="admin-settings-head">
+        <div>
+          <span className="admin-status ready">练习配置</span>
+          <h2>词汇练习设置</h2>
+        </div>
+      </div>
+      {loading ? <LoadingScreen compact /> : null}
+      {error ? <div className="notice danger">{error}</div> : null}
+      {saved ? <div className="notice">练习配置已保存。</div> : null}
+      {!loading ? (
+        <form className="admin-form admin-settings-form" onSubmit={save}>
+          <label>
+            中考词汇每组词数
+            <input
+              type="number"
+              min={1}
+              max={30}
+              step={1}
+              value={juniorBatchSize}
+              onChange={(event) => setJuniorBatchSize(event.target.value)}
+              required
+            />
+          </label>
+          <label>
+            高考词汇每组词数
+            <input
+              type="number"
+              min={1}
+              max={30}
+              step={1}
+              value={seniorBatchSize}
+              onChange={(event) => setSeniorBatchSize(event.target.value)}
+              required
+            />
+          </label>
+          <div className="admin-form-actions">
+            <button className="primary-button small" disabled={submitting}>
+              {submitting ? <Loader2 className="spin" size={18} /> : <Check size={18} />}
+              保存配置
+            </button>
+          </div>
+        </form>
+      ) : null}
+    </section>
+  );
 }
 
 function AdminQuestions() {
@@ -3721,6 +3991,8 @@ type AdminWalletSettingsData = {
   penaltyMinCents: number;
   penaltyMaxCents: number;
   withdrawThresholdCents: number;
+  seniorWordRewardAverageAbove: number;
+  seniorWordPenaltyAverageBelow: number;
   updatedAt: string | null;
 };
 
@@ -3737,6 +4009,8 @@ function AdminWallet() {
   const [penaltyMin, setPenaltyMin] = useState("1");
   const [penaltyMax, setPenaltyMax] = useState("2");
   const [threshold, setThreshold] = useState("10");
+  const [seniorRewardAverageAbove, setSeniorRewardAverageAbove] = useState("90");
+  const [seniorPenaltyAverageBelow, setSeniorPenaltyAverageBelow] = useState("70");
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [balanceCents, setBalanceCents] = useState(0);
   const [items, setItems] = useState<WalletTx[]>([]);
@@ -3760,6 +4034,8 @@ function AdminWallet() {
     setPenaltyMin(yuanInputValue(data.penaltyMinCents));
     setPenaltyMax(yuanInputValue(data.penaltyMaxCents));
     setThreshold(yuanInputValue(data.withdrawThresholdCents));
+    setSeniorRewardAverageAbove(String(data.seniorWordRewardAverageAbove));
+    setSeniorPenaltyAverageBelow(String(data.seniorWordPenaltyAverageBelow));
     setUpdatedAt(data.updatedAt);
   }
 
@@ -3804,7 +4080,9 @@ function AdminWallet() {
           penaltyScoreBelow: Number(penaltyScoreBelow),
           penaltyMinCents: Math.round(Number(penaltyMin) * 100),
           penaltyMaxCents: Math.round(Number(penaltyMax) * 100),
-          withdrawThresholdCents: Math.round(Number(threshold) * 100)
+          withdrawThresholdCents: Math.round(Number(threshold) * 100),
+          seniorWordRewardAverageAbove: Number(seniorRewardAverageAbove),
+          seniorWordPenaltyAverageBelow: Number(seniorPenaltyAverageBelow)
         })
       })) as AdminWalletSettingsData;
       setRewardScore(String(data.rewardScore));
@@ -3814,6 +4092,8 @@ function AdminWallet() {
       setPenaltyMin(yuanInputValue(data.penaltyMinCents));
       setPenaltyMax(yuanInputValue(data.penaltyMaxCents));
       setThreshold(yuanInputValue(data.withdrawThresholdCents));
+      setSeniorRewardAverageAbove(String(data.seniorWordRewardAverageAbove));
+      setSeniorPenaltyAverageBelow(String(data.seniorWordPenaltyAverageBelow));
       setUpdatedAt(data.updatedAt);
       setSaved(true);
     } catch (err) {
@@ -3872,7 +4152,7 @@ function AdminWallet() {
         <>
           <form className="admin-form admin-settings-form" onSubmit={saveSettings}>
             <AdminRangeSetting
-              title="奖惩分数线"
+              title="中译英及中考词汇奖惩分数线"
               description="左侧是高分奖励区，右侧是低分扣钱区，中间不奖不扣。"
               min={0}
               max={100}
@@ -3884,6 +4164,20 @@ function AdminWallet() {
               mode="score"
               onLowChange={(value) => setPenaltyScoreBelow(String(value))}
               onHighChange={(value) => setRewardScore(String(value))}
+            />
+            <AdminRangeSetting
+              title="高考词汇平均分线"
+              description="一组练完后按平均分结算；金额复用下方奖惩金额尺。"
+              min={0}
+              max={100}
+              low={Number(seniorPenaltyAverageBelow)}
+              high={Number(seniorRewardAverageAbove)}
+              lowLabel="扣钱低于"
+              highLabel="奖励达到"
+              unit="分"
+              mode="score"
+              onLowChange={(value) => setSeniorPenaltyAverageBelow(String(value))}
+              onHighChange={(value) => setSeniorRewardAverageAbove(String(value))}
             />
             <AdminMoneyRangeSetting
               rewardLow={Number(rewardMin)}
@@ -4350,6 +4644,25 @@ function apiUrl(path: string): string {
 async function playWordAudioById(wordId: string): Promise<void> {
   const audio = new Audio(apiUrl(`/api/word-audio/${encodeURIComponent(wordId)}?t=${Date.now()}`));
   await audio.play();
+}
+
+function wordProfileQuery(profile: WordPracticeProfile): string {
+  return new URLSearchParams({ profile }).toString();
+}
+
+function formatDefinitionSummary(definitions: Array<{ partOfSpeech: string; meaning: string }>): string {
+  const text = definitions
+    .map((definition) => `${definition.partOfSpeech} ${definition.meaning}`.trim())
+    .filter(Boolean)
+    .join("；");
+  return text || "暂无中文释义";
+}
+
+function summaryScoreClass(score: number | null): string {
+  if (score === null) return "missing";
+  if (score >= 90) return "great";
+  if (score >= 70) return "ok";
+  return "low";
 }
 
 // 把音标用斜杠包裹，如 /bɜːn/；若已自带斜杠则原样保留。

@@ -45,9 +45,10 @@ function grade(score) {
   };
 }
 
-function submit(database, { sessionId = null, wordId, phase, score }) {
+function submit(database, { sessionId = null, practiceKind = "junior", wordId, phase, score }) {
   database.saveWordSubmission({
     sessionId,
+    practiceKind,
     wordId,
     phase,
     wordAnswer: phase === "word" ? wordId : null,
@@ -60,9 +61,12 @@ function submit(database, { sessionId = null, wordId, phase, score }) {
 test("word batch size defaults to 5 and is clamped", () => {
   const database = makeDatabase();
   assert.equal(database.getWordBatchSize(), 5);
+  assert.equal(database.getWordBatchSize("senior"), 10);
   assert.equal(database.setWordBatchSize(0), 1);
   assert.equal(database.getWordBatchSize(), 1);
   assert.equal(database.setWordBatchSize(99), 30);
+  assert.equal(database.setWordBatchSize(12, "senior"), 12);
+  assert.equal(database.getWordBatchSize("senior"), 12);
 });
 
 test("a word is mastered only after word and example phases pass", () => {
@@ -77,6 +81,16 @@ test("a word is mastered only after word and example phases pass", () => {
 
   assert.deepEqual([...database.masteredWordIds(80)], ["ability"]);
   assert.equal(database.completeWordSessionIfReady(session.sessionId, 80), true);
+});
+
+test("a senior word is mastered after the word phase only", () => {
+  const database = makeDatabase();
+  const session = database.startWordSession([word("ability")], "senior-candidate", "level", "a-1", "senior");
+  submit(database, { sessionId: session.sessionId, practiceKind: "senior", wordId: "ability", phase: "word", score: 86 });
+
+  assert.deepEqual([...database.masteredWordIds(80, "senior")], ["ability"]);
+  assert.equal(database.completeWordSessionIfReady(session.sessionId, 80), true);
+  assert.deepEqual(database.getWordSessionResume(session.sessionId, 80), { itemNo: 2, phase: "complete" });
 });
 
 test("low word or example scores enter the independent word review queue", () => {
@@ -126,6 +140,26 @@ test("word progress can be scoped to a configured vocabulary list", () => {
   assert.equal(progress.submissionCount, 2);
 });
 
+test("junior and senior word progress are independent for the same word", () => {
+  const database = makeDatabase();
+  submit(database, { wordId: "ability", phase: "word", score: 90 });
+  submit(database, { wordId: "ability", phase: "example", score: 92 });
+  submit(database, { practiceKind: "senior", wordId: "ability", phase: "word", score: 40 });
+
+  assert.deepEqual([...database.masteredWordIds(80)], ["ability"]);
+  assert.deepEqual([...database.masteredWordIds(80, "senior")], []);
+  assert.deepEqual(
+    database.latestWordReviewRows(80, "senior").map((row) => `${row.word_id}:${row.latest_phase}`),
+    ["ability:word"]
+  );
+  const juniorProgress = database.getWordProgress(1, 80, ["ability"]);
+  const seniorProgress = database.getWordProgress(1, 80, ["ability"], "senior");
+  assert.equal(juniorProgress.masteredWords, 1);
+  assert.equal(juniorProgress.reviewWords, 0);
+  assert.equal(seniorProgress.masteredWords, 0);
+  assert.equal(seniorProgress.reviewWords, 1);
+});
+
 test("unfinished word level sessions resume at the next incomplete phase", () => {
   const database = makeDatabase();
   const words = [word("ability"), word("able")];
@@ -158,6 +192,21 @@ test("stale word level sessions are not resumed when the level word list changes
   submit(database, { sessionId: first.sessionId, wordId: "ability", phase: "word", score: 90 });
 
   const restarted = database.startOrResumeWordSession(newWords, "shanghai-zhongkao", "level", "a-1", 80);
+
+  assert.notEqual(restarted.sessionId, first.sessionId);
+  assert.equal(restarted.resumed, false);
+  assert.equal(database.getWordSession(first.sessionId).status, "stale");
+  assert.deepEqual(database.getWordSessionWordIds(restarted.sessionId), ["ability", "about"]);
+});
+
+test("stale senior word level sessions are not resumed when the level word list changes", () => {
+  const database = makeDatabase();
+  const oldWords = [word("ability"), word("able")];
+  const newWords = [word("ability"), word("about")];
+  const first = database.startOrResumeWordSession(oldWords, "senior-candidate", "level", "a-1", 80, "senior");
+  submit(database, { sessionId: first.sessionId, practiceKind: "senior", wordId: "ability", phase: "word", score: 90 });
+
+  const restarted = database.startOrResumeWordSession(newWords, "senior-candidate", "level", "a-1", 80, "senior");
 
   assert.notEqual(restarted.sessionId, first.sessionId);
   assert.equal(restarted.resumed, false);
