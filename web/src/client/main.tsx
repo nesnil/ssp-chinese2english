@@ -128,6 +128,8 @@ type ActivityCalendarData = {
   days: ActivityCalendarDay[];
 };
 
+type ActivityEventFilter = "sentence" | "juniorWord" | "seniorWord";
+
 type WordProgress = {
   profile?: WordPracticeProfile;
   threshold: number;
@@ -1059,6 +1061,7 @@ function ActivityCalendarScreen({ onBack }: { onBack: () => void }) {
   const [year, setYear] = useState(currentShanghaiYear);
   const [data, setData] = useState<ActivityCalendarData | null>(null);
   const [selectedDate, setSelectedDate] = useState("");
+  const [activityEventFilter, setActivityEventFilter] = useState<ActivityEventFilter>("sentence");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const todayButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -1087,8 +1090,13 @@ function ActivityCalendarScreen({ onBack }: { onBack: () => void }) {
 
   const months = useMemo(() => (data ? groupActivityMonths(data.days) : []), [data]);
   const selectedDay = data?.days.find((day) => day.date === selectedDate) || null;
+  const filteredEvents = selectedDay ? activityEventsForFilter(selectedDay.events, activityEventFilter) : [];
   const averageScore = data?.summary.averageScore ?? null;
   const todayYear = data ? Number(data.today.slice(0, 4)) : currentShanghaiYear();
+
+  useEffect(() => {
+    if (selectedDay) setActivityEventFilter(firstActivityEventFilter(selectedDay));
+  }, [selectedDay?.date]);
 
   useEffect(() => {
     if (!data || !pendingTodayScrollRef.current || year !== todayYear) return;
@@ -1145,18 +1153,36 @@ function ActivityCalendarScreen({ onBack }: { onBack: () => void }) {
                   <span className="activity-detail-date">{formatActivityDate(selectedDay.date)}</span>
                   <h1>{selectedDay.completed ? "这天练过啦" : "这天还没有练习"}</h1>
                   <div className="activity-detail-summary-grid">
-                    <ActivityDetailSummaryCard kind="sentence" title="中译英" summary={selectedDay.sentence} />
-                    <ActivityDetailSummaryCard kind="juniorWord" title="中考词汇" summary={selectedDay.juniorWord} />
-                    <ActivityDetailSummaryCard kind="seniorWord" title="高考词汇" summary={selectedDay.seniorWord} />
+                    <ActivityDetailSummaryCard
+                      kind="sentence"
+                      title="中译英"
+                      summary={selectedDay.sentence}
+                      selected={activityEventFilter === "sentence"}
+                      onSelect={() => setActivityEventFilter("sentence")}
+                    />
+                    <ActivityDetailSummaryCard
+                      kind="juniorWord"
+                      title="中考词汇"
+                      summary={selectedDay.juniorWord}
+                      selected={activityEventFilter === "juniorWord"}
+                      onSelect={() => setActivityEventFilter("juniorWord")}
+                    />
+                    <ActivityDetailSummaryCard
+                      kind="seniorWord"
+                      title="高考词汇"
+                      summary={selectedDay.seniorWord}
+                      selected={activityEventFilter === "seniorWord"}
+                      onSelect={() => setActivityEventFilter("seniorWord")}
+                    />
                   </div>
                   <div className="activity-event-column">
                     <div className="activity-event-head">
-                      <strong>当天记录</strong>
-                      <span>{selectedDay.events.length} 条</span>
+                      <strong>{activityFilterTitle(activityEventFilter)}记录</strong>
+                      <span>{filteredEvents.length} 条</span>
                     </div>
                     <div className="activity-event-list">
-                      {selectedDay.events.length ? (
-                        selectedDay.events.map((event, index) => {
+                      {filteredEvents.length ? (
+                        filteredEvents.map((event, index) => {
                           const EventIcon = event.type === "sentence" ? Flag : event.practiceKind === "senior" ? GraduationCap : BookOpen;
                           return (
                             <article
@@ -1177,7 +1203,7 @@ function ActivityCalendarScreen({ onBack }: { onBack: () => void }) {
                           );
                         })
                       ) : (
-                        <p className="wallet-empty">这天还没有记录。中译英和单词练习都会自动出现在这里。</p>
+                        <p className="wallet-empty">这天没有{activityFilterTitle(activityEventFilter)}记录。</p>
                       )}
                     </div>
                   </div>
@@ -1281,17 +1307,26 @@ function ActivityCellRow({
 function ActivityDetailSummaryCard({
   kind,
   title,
-  summary
+  summary,
+  selected,
+  onSelect
 }: {
   kind: "sentence" | "juniorWord" | "seniorWord";
   title: string;
   summary: ActivityPracticeSummary;
+  selected: boolean;
+  onSelect: () => void;
 }) {
   const Icon = kind === "sentence" ? Flag : kind === "seniorWord" ? GraduationCap : BookOpen;
   const score = summary.status === "none" ? "--" : summary.score === null ? "已练" : summary.score;
-  const statusLabel = summary.status === "complete" ? "完成" : summary.status === "partial" ? "已练" : "未练";
+  const statusLabel = summary.status === "complete" ? `完成 ${summary.count || 1} 次` : summary.status === "partial" ? "已练" : "未练";
   return (
-    <article className={`activity-detail-summary-card ${kind} ${summary.status}`}>
+    <button
+      type="button"
+      className={`activity-detail-summary-card ${kind} ${summary.status} ${selected ? "selected" : ""}`}
+      onClick={onSelect}
+      aria-pressed={selected}
+    >
       <span>
         <Icon size={18} />
       </span>
@@ -1299,8 +1334,11 @@ function ActivityDetailSummaryCard({
         <strong>{title}</strong>
         <small>{statusLabel}</small>
       </div>
-      <b>{score}</b>
-    </article>
+      <b>
+        <small>完成均分</small>
+        {score}
+      </b>
+    </button>
   );
 }
 
@@ -4677,6 +4715,27 @@ function activityDayTitle(day: ActivityCalendarDay): string {
   const parts = [formatActivityDate(day.date), day.sentence.label, day.juniorWord.label, day.seniorWord.label];
   if (day.events.length) parts.push(day.events.map((event) => `${event.time || ""} ${event.label} ${event.detail}`.trim()).join("；"));
   return parts.join(" · ");
+}
+
+function firstActivityEventFilter(day: ActivityCalendarDay): ActivityEventFilter {
+  if (day.sentence.status !== "none") return "sentence";
+  if (day.juniorWord.status !== "none") return "juniorWord";
+  if (day.seniorWord.status !== "none") return "seniorWord";
+  return "sentence";
+}
+
+function activityEventsForFilter(events: ActivityCalendarEvent[], filter: ActivityEventFilter): ActivityCalendarEvent[] {
+  return events.filter((event) => {
+    if (filter === "sentence") return event.type === "sentence";
+    if (filter === "juniorWord") return event.type === "word" && event.practiceKind !== "senior";
+    return event.type === "word" && event.practiceKind === "senior";
+  });
+}
+
+function activityFilterTitle(filter: ActivityEventFilter): string {
+  if (filter === "sentence") return "中译英";
+  if (filter === "juniorWord") return "中考词汇";
+  return "高考词汇";
 }
 
 function activityEventClass(event: ActivityCalendarEvent): string {

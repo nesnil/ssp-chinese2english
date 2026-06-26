@@ -1890,7 +1890,7 @@ export class AppDatabase {
         status: "complete",
         label: count > 1 ? `中译英完成 ${count} 次` : "中译英完成",
         score: dailySubmissions?.average_score ?? row.average_score,
-        count: dailySubmissions?.question_count ?? count,
+        count,
         time: dailySubmissions?.latest_at ? shanghaiTime(dailySubmissions.latest_at) : shanghaiTime(row.completed_at)
       };
       day.events.push({
@@ -1940,7 +1940,7 @@ export class AppDatabase {
         status: "complete",
         label: count > 1 ? `${label}完成 ${count} 次` : `${label}完成`,
         score: dailySubmissions?.average_score ?? row.average_score,
-        count: dailySubmissions?.word_count ?? count,
+        count,
         time: dailySubmissions?.latest_at ? shanghaiTime(dailySubmissions.latest_at) : shanghaiTime(row.completed_at)
       };
       day.events.push({
