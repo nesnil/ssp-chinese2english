@@ -653,7 +653,7 @@ function HomeTabs({
         {wordProgress?.reviewWords ? <span>{wordProgress.reviewWords}</span> : null}
       </button>
       <button className={active === "seniorWords" ? "active" : ""} onClick={() => onChange("seniorWords")}>
-        <BookOpen size={19} />
+        <GraduationCap size={19} />
         高考词汇练习
         {seniorWordProgress?.reviewWords ? <span>{seniorWordProgress.reviewWords}</span> : null}
       </button>
@@ -1403,15 +1403,13 @@ function WalletScreen({ onBack }: { onBack: () => void }) {
       {!loading && data ? (
         <>
           <section className={`wallet-hero ${balance < 0 ? "negative" : ""}`}>
-            <div className="wallet-hero-balance">
-              <span>
-                <Wallet size={18} />
-                当前余额
-              </span>
-              <strong>{formatYuan(balance)}</strong>
-              <p>{balance < 0 ? "先把欠的赚回来，加油！" : "考满分有奖励，攒够就能找爸爸妈妈提现。"}</p>
+            <div className="wallet-hero-card">
+              <WalletCard balanceCents={balance} />
             </div>
             <div className="wallet-progress">
+              <p className="wallet-hero-note">
+                {balance < 0 ? "先把欠的赚回来，加油！" : "考满分有奖励，攒够就能找爸爸妈妈提现。"}
+              </p>
               <div className="wallet-progress-track">
                 <div className="wallet-progress-fill" style={{ width: `${percent}%` }} />
               </div>
@@ -4115,7 +4113,6 @@ function AdminWallet() {
   const [threshold, setThreshold] = useState("10");
   const [seniorRewardAverageAbove, setSeniorRewardAverageAbove] = useState("90");
   const [seniorPenaltyAverageBelow, setSeniorPenaltyAverageBelow] = useState("70");
-  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [balanceCents, setBalanceCents] = useState(0);
   const [items, setItems] = useState<WalletTx[]>([]);
   const [total, setTotal] = useState(0);
@@ -4140,7 +4137,6 @@ function AdminWallet() {
     setThreshold(yuanInputValue(data.withdrawThresholdCents));
     setSeniorRewardAverageAbove(String(data.seniorWordRewardAverageAbove));
     setSeniorPenaltyAverageBelow(String(data.seniorWordPenaltyAverageBelow));
-    setUpdatedAt(data.updatedAt);
   }
 
   async function loadTransactions(nextOffset = offset) {
@@ -4198,7 +4194,6 @@ function AdminWallet() {
       setThreshold(yuanInputValue(data.withdrawThresholdCents));
       setSeniorRewardAverageAbove(String(data.seniorWordRewardAverageAbove));
       setSeniorPenaltyAverageBelow(String(data.seniorWordPenaltyAverageBelow));
-      setUpdatedAt(data.updatedAt);
       setSaved(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "保存失败");
@@ -4241,19 +4236,12 @@ function AdminWallet() {
   return (
     <section className="admin-panel">
       <div className="admin-settings-head wallet-settings-head">
-        <div>
+        <div className="wallet-settings-copy">
           <span className="admin-status ready">钱包设置</span>
           <h2>奖励与扣钱规则</h2>
           <p>设置中译英、词汇练习和高考词汇整组练习的钱包奖惩规则。</p>
         </div>
-        <div className={`wallet-balance-card ${balanceCents < 0 ? "negative" : ""}`}>
-          <div className="wallet-balance-card-title">
-            <Wallet size={18} />
-            <span>当前余额</span>
-          </div>
-          <strong>{formatYuan(balanceCents)}</strong>
-          <small>{updatedAt ? `更新于 ${formatDate(updatedAt)}` : "用于奖励与提现"}</small>
-        </div>
+        <WalletCard balanceCents={balanceCents} />
       </div>
 
       {loading ? <LoadingScreen compact /> : null}
@@ -4821,6 +4809,60 @@ function formatYuan(cents: number): string {
 
 function signedYuan(cents: number): string {
   return cents >= 0 ? `+${formatYuan(cents)}` : formatYuan(cents);
+}
+
+// 模拟银行卡的余额卡片：芯片 + 卡号 + 余额，鼠标移动时 3D 倾斜并带高光跟随。
+function WalletCard({ balanceCents }: { balanceCents: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    const el = ref.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const px = (event.clientX - rect.left) / rect.width; // 0..1
+    const py = (event.clientY - rect.top) / rect.height; // 0..1
+    const rotateY = (px - 0.5) * 16; // 左右倾斜
+    const rotateX = (0.5 - py) * 16; // 上下倾斜
+    el.style.setProperty("--rx", `${rotateX.toFixed(2)}deg`);
+    el.style.setProperty("--ry", `${rotateY.toFixed(2)}deg`);
+    el.style.setProperty("--glare-x", `${(px * 100).toFixed(1)}%`);
+    el.style.setProperty("--glare-y", `${(py * 100).toFixed(1)}%`);
+  }
+
+  function reset() {
+    const el = ref.current;
+    if (!el) return;
+    el.style.setProperty("--rx", "0deg");
+    el.style.setProperty("--ry", "0deg");
+    el.style.setProperty("--glare-x", "50%");
+    el.style.setProperty("--glare-y", "0%");
+  }
+
+  return (
+    <div className="wallet-card-scene">
+      <div
+        ref={ref}
+        className={`wallet-balance-card ${balanceCents < 0 ? "negative" : ""}`}
+        aria-label={`当前余额 ${formatYuan(balanceCents)}`}
+        onPointerMove={handlePointerMove}
+        onPointerLeave={reset}
+      >
+        <div className="wallet-card-glare" aria-hidden="true" />
+        <div className="wallet-card-top">
+          <span className="wallet-card-chip" aria-hidden="true" />
+          <span className="wallet-card-brand">练习奖励卡</span>
+        </div>
+        <div className="wallet-card-balance">
+          <span className="wallet-card-label">当前余额</span>
+          <strong>{formatYuan(balanceCents)}</strong>
+        </div>
+        <div className="wallet-card-bottom" aria-hidden="true">
+          <span className="wallet-card-number">**** **** **** 2026</span>
+          <span className="wallet-card-holder">C2E</span>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 const DISPLAY_TIME_ZONE = "Asia/Shanghai";
