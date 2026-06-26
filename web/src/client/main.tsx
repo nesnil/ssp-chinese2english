@@ -1144,28 +1144,42 @@ function ActivityCalendarScreen({ onBack }: { onBack: () => void }) {
                 <>
                   <span className="activity-detail-date">{formatActivityDate(selectedDay.date)}</span>
                   <h1>{selectedDay.completed ? "这天练过啦" : "这天还没有练习"}</h1>
-                  <div className="activity-detail-tags">
-                    <span className={selectedDay.sentence.status}>{selectedDay.sentence.label}</span>
-                    <span className={selectedDay.juniorWord.status}>{selectedDay.juniorWord.label}</span>
-                    <span className={selectedDay.seniorWord.status}>{selectedDay.seniorWord.label}</span>
+                  <div className="activity-detail-summary-grid">
+                    <ActivityDetailSummaryCard kind="sentence" title="中译英" summary={selectedDay.sentence} />
+                    <ActivityDetailSummaryCard kind="juniorWord" title="中考词汇" summary={selectedDay.juniorWord} />
+                    <ActivityDetailSummaryCard kind="seniorWord" title="高考词汇" summary={selectedDay.seniorWord} />
                   </div>
-                  <div className="activity-event-list">
-                    {selectedDay.events.length ? (
-                      selectedDay.events.map((event, index) => (
-                        <article key={`${event.type}-${event.practiceKind || "sentence"}-${event.occurredAt || index}`} className={activityEventClass(event)}>
-                          <span>{event.type === "sentence" ? <Flag size={18} /> : <BookOpen size={18} />}</span>
-                          <div>
-                            <strong>{event.label}</strong>
-                            <small>
-                              {event.time ? `${event.time} · ` : ""}
-                              {event.detail}
-                            </small>
-                          </div>
-                        </article>
-                      ))
-                    ) : (
-                      <p className="wallet-empty">这天还没有记录。中译英和单词练习都会自动出现在这里。</p>
-                    )}
+                  <div className="activity-event-column">
+                    <div className="activity-event-head">
+                      <strong>当天记录</strong>
+                      <span>{selectedDay.events.length} 条</span>
+                    </div>
+                    <div className="activity-event-list">
+                      {selectedDay.events.length ? (
+                        selectedDay.events.map((event, index) => {
+                          const EventIcon = event.type === "sentence" ? Flag : event.practiceKind === "senior" ? GraduationCap : BookOpen;
+                          return (
+                            <article
+                              key={`${event.type}-${event.practiceKind || "sentence"}-${event.occurredAt || index}`}
+                              className={activityEventClass(event)}
+                            >
+                              <span>
+                                <EventIcon size={18} />
+                              </span>
+                              <div>
+                                <strong>{event.label}</strong>
+                                <small>
+                                  {event.time ? `${event.time} · ` : ""}
+                                  {event.detail}
+                                </small>
+                              </div>
+                            </article>
+                          );
+                        })
+                      ) : (
+                        <p className="wallet-empty">这天还没有记录。中译英和单词练习都会自动出现在这里。</p>
+                      )}
+                    </div>
                   </div>
                 </>
               ) : null}
@@ -1261,6 +1275,32 @@ function ActivityCellRow({
       <span className="activity-cell-score">{scoreLabel}</span>
       {perfect ? <Sparkles size={12} className="activity-cell-star" /> : null}
     </span>
+  );
+}
+
+function ActivityDetailSummaryCard({
+  kind,
+  title,
+  summary
+}: {
+  kind: "sentence" | "juniorWord" | "seniorWord";
+  title: string;
+  summary: ActivityPracticeSummary;
+}) {
+  const Icon = kind === "sentence" ? Flag : kind === "seniorWord" ? GraduationCap : BookOpen;
+  const score = summary.status === "none" ? "--" : summary.score === null ? "已练" : summary.score;
+  const statusLabel = summary.status === "complete" ? "完成" : summary.status === "partial" ? "已练" : "未练";
+  return (
+    <article className={`activity-detail-summary-card ${kind} ${summary.status}`}>
+      <span>
+        <Icon size={18} />
+      </span>
+      <div>
+        <strong>{title}</strong>
+        <small>{statusLabel}</small>
+      </div>
+      <b>{score}</b>
+    </article>
   );
 }
 

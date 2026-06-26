@@ -1875,7 +1875,7 @@ export class AppDatabase {
     }>;
 
     const sentenceSubmissionsByDate = new Map(sentenceSubmissions.map((row) => [row.activity_date, row]));
-    const wordSubmissionsByDate = new Map(wordSubmissions.map((row) => [row.activity_date, row]));
+    const wordSubmissionsByDate = new Map(wordSubmissions.map((row) => [`${row.activity_date}:${row.practice_kind}`, row]));
     const sentenceCompletionCounts = new Map<string, number>();
     const wordCompletionCounts = new Map<string, number>();
 
@@ -1884,13 +1884,14 @@ export class AppDatabase {
       if (!day) continue;
       const count = (sentenceCompletionCounts.get(row.activity_date) || 0) + 1;
       sentenceCompletionCounts.set(row.activity_date, count);
+      const dailySubmissions = sentenceSubmissionsByDate.get(row.activity_date);
       day.completed = true;
       day.sentence = {
         status: "complete",
         label: count > 1 ? `中译英完成 ${count} 次` : "中译英完成",
-        score: row.average_score,
-        count,
-        time: shanghaiTime(row.completed_at)
+        score: dailySubmissions?.average_score ?? row.average_score,
+        count: dailySubmissions?.question_count ?? count,
+        time: dailySubmissions?.latest_at ? shanghaiTime(dailySubmissions.latest_at) : shanghaiTime(row.completed_at)
       };
       day.events.push({
         type: "sentence",
@@ -1932,14 +1933,15 @@ export class AppDatabase {
       const countKey = `${row.activity_date}:${row.practice_kind}`;
       const count = (wordCompletionCounts.get(countKey) || 0) + 1;
       wordCompletionCounts.set(countKey, count);
+      const dailySubmissions = wordSubmissionsByDate.get(countKey);
       const label = wordPracticeLabel(row.practice_kind);
       day.completed = true;
       day[summaryKey] = {
         status: "complete",
         label: count > 1 ? `${label}完成 ${count} 次` : `${label}完成`,
-        score: row.average_score,
-        count,
-        time: shanghaiTime(row.completed_at)
+        score: dailySubmissions?.average_score ?? row.average_score,
+        count: dailySubmissions?.word_count ?? count,
+        time: dailySubmissions?.latest_at ? shanghaiTime(dailySubmissions.latest_at) : shanghaiTime(row.completed_at)
       };
       day.events.push({
         type: "word",

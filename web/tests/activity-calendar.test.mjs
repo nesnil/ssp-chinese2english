@@ -228,3 +228,55 @@ test("activity calendar keeps junior and senior word practice separate on the sa
     ["junior:中考词汇练习:88", "senior:高考词汇练习:94"]
   );
 });
+
+test("activity calendar cell scores use daily submission averages instead of last completed session score", () => {
+  const database = makeDatabase();
+  insertCompletedSentenceDay(database, {
+    season: 1,
+    day: 11,
+    questionCount: 2,
+    score: 100,
+    completedAt: "2026-01-11 10:20:00"
+  });
+  submitSentenceAt(database, {
+    questionId: "S1-D11-Q1",
+    season: 1,
+    day: 11,
+    questionNo: 1,
+    score: 80,
+    createdAt: "2026-01-11 10:00:00"
+  });
+  submitSentenceAt(database, {
+    questionId: "S1-D11-Q2",
+    season: 1,
+    day: 11,
+    questionNo: 2,
+    score: 90,
+    createdAt: "2026-01-11 10:10:00"
+  });
+  insertCompletedWordSession(database, {
+    practiceKind: "junior",
+    wordCount: 2,
+    score: 100,
+    completedAt: "2026-01-11 11:20:00"
+  });
+  submitWordAt(database, {
+    practiceKind: "junior",
+    wordId: "ability",
+    score: 70,
+    createdAt: "2026-01-11 11:00:00"
+  });
+  submitWordAt(database, {
+    practiceKind: "junior",
+    wordId: "able",
+    score: 90,
+    createdAt: "2026-01-11 11:10:00"
+  });
+
+  const calendar = database.getActivityCalendar(2026, "2026-01-11");
+  const jan11 = day(calendar, "2026-01-11");
+  assert.equal(jan11.sentence.status, "complete");
+  assert.equal(jan11.sentence.score, 85);
+  assert.equal(jan11.juniorWord.status, "complete");
+  assert.equal(jan11.juniorWord.score, 80);
+});

@@ -939,7 +939,7 @@ button {
   display: grid;
   grid-template-columns: minmax(220px, 0.72fr) minmax(320px, 1fr);
   gap: 16px 22px;
-  align-items: center;
+  align-items: start;
   padding: clamp(20px, 3.2vw, 30px);
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.93), rgba(234, 248, 255, 0.93)),
@@ -965,42 +965,118 @@ button {
   line-height: 1.08;
 }
 
-.activity-detail-tags {
+.activity-detail-summary-grid {
   grid-column: 1;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: 8px;
 }
 
-.activity-detail-tags span {
-  padding: 7px 11px;
-  border-radius: 999px;
+.activity-detail-summary-card {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 9px 11px;
+  border-radius: 17px;
   color: #52627f;
-  background: #eef3f9;
-  font-size: 13px;
+  background: rgba(238, 243, 249, 0.86);
   font-weight: 1000;
 }
 
-.activity-detail-tags .complete {
+.activity-detail-summary-card > span {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  color: #ffffff;
+  background: #b8c4d3;
+}
+
+.activity-detail-summary-card.sentence.complete > span,
+.activity-detail-summary-card.sentence.partial > span {
+  background: #27a8ff;
+}
+
+.activity-detail-summary-card.juniorWord.complete > span,
+.activity-detail-summary-card.juniorWord.partial > span {
+  background: #35c85a;
+}
+
+.activity-detail-summary-card.seniorWord.complete > span,
+.activity-detail-summary-card.seniorWord.partial > span {
+  background: #8b5cf6;
+}
+
+.activity-detail-summary-card strong,
+.activity-detail-summary-card small {
+  display: block;
+}
+
+.activity-detail-summary-card strong {
+  color: #172033;
+  font-size: 14px;
+}
+
+.activity-detail-summary-card small {
+  margin-top: 3px;
+  color: #7c8aa3;
+  font-size: 12px;
+}
+
+.activity-detail-summary-card b {
+  color: #172033;
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+
+.activity-detail-summary-card.complete,
+.activity-detail-summary-card.partial {
   color: #1f6d3f;
   background: #e3fbdf;
 }
 
-.activity-detail-tags .partial {
-  color: #1379c1;
+.activity-detail-summary-card.sentence.partial {
   background: #e3f3ff;
 }
 
-.activity-detail-tags .none {
+.activity-detail-summary-card.seniorWord.complete,
+.activity-detail-summary-card.seniorWord.partial {
+  background: #efe9ff;
+}
+
+.activity-detail-summary-card.none {
   color: #8b98ad;
   background: #f0f3f7;
 }
 
-.activity-event-list {
+.activity-event-column {
   grid-column: 2;
   grid-row: 1 / span 3;
+  min-height: 0;
+}
+
+.activity-event-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  color: #172033;
+  font-weight: 1000;
+}
+
+.activity-event-head span {
+  color: #697891;
+  font-size: 13px;
+}
+
+.activity-event-list {
   display: grid;
   gap: 10px;
+  max-height: 236px;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .activity-event {
@@ -2400,10 +2476,18 @@ button.history-card {
 
   .activity-detail-date,
   .activity-detail-panel h1,
-  .activity-detail-tags,
-  .activity-event-list {
+  .activity-detail-summary-grid,
+  .activity-event-column {
     grid-column: 1;
     grid-row: auto;
+  }
+
+  .activity-detail-summary-grid {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+
+  .activity-event-list {
+    max-height: 260px;
   }
 
   .activity-calendar-panel {
