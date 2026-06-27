@@ -4860,7 +4860,7 @@ function WalletCard({ balanceCents }: { balanceCents: number }) {
         </div>
         <div className="wallet-card-bottom" aria-hidden="true">
           <span className="wallet-card-number">**** **** **** 2026</span>
-          <span className="wallet-card-holder">C2E</span>
+          <span className="wallet-card-holder">林沄</span>
         </div>
       </div>
     </div>
