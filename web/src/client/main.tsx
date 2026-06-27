@@ -4811,7 +4811,7 @@ function signedYuan(cents: number): string {
   return cents >= 0 ? `+${formatYuan(cents)}` : formatYuan(cents);
 }
 
-// 模拟银行卡的余额卡片：芯片 + 卡号 + 余额，鼠标移动时 3D 倾斜并带高光跟随。
+// 模拟银行卡的余额卡片：logo + 卡号 + 余额，鼠标移动时 3D 倾斜并带高光跟随。
 function WalletCard({ balanceCents }: { balanceCents: number }) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -4849,7 +4849,9 @@ function WalletCard({ balanceCents }: { balanceCents: number }) {
       >
         <div className="wallet-card-glare" aria-hidden="true" />
         <div className="wallet-card-top">
-          <span className="wallet-card-chip" aria-hidden="true" />
+          <span className="wallet-card-logo" aria-hidden="true">
+            <BookOpen size={22} strokeWidth={2.4} />
+          </span>
           <span className="wallet-card-brand">练习奖励卡</span>
         </div>
         <div className="wallet-card-balance">
