@@ -15,8 +15,7 @@ const outputPath = path.join(outputDir, "word-bank.json");
 const TAGS = [
   { id: "all", label: "全部词汇", systemGenerated: false },
   { id: "shanghai-zhongkao", label: "上海中考考纲", systemGenerated: false },
-  { id: "junior-candidate", label: "初中候选", systemGenerated: true },
-  { id: "senior-candidate", label: "高中候选", systemGenerated: true },
+  { id: "senior-candidate", label: "高考考纲词汇", systemGenerated: true },
   { id: "cet4-candidate", label: "四级候选", systemGenerated: true },
   { id: "cet6-candidate", label: "六级候选", systemGenerated: true },
   { id: "uncategorized", label: "未分类", systemGenerated: true }
@@ -122,7 +121,7 @@ function autoTags(item, index, zhongkaoWords) {
     `${definitionText} ${exampleText}`
   );
 
-  const tags = new Set(["all", "junior-candidate"]);
+  const tags = new Set(["all"]);
   if ([...wordNameVariants(name)].some((variant) => zhongkaoWords.has(variant))) {
     tags.add("shanghai-zhongkao");
   }

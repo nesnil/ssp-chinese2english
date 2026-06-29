@@ -21,7 +21,6 @@ test("word entries expose practice-safe fields and audio mapping", () => {
   assert.ok(ability.examples[0].chinese);
   assert.equal(ability.audioPath, "a/ability.mp3");
   assert.ok(ability.tags.includes("all"));
-  assert.ok(ability.tags.includes("junior-candidate"));
   assert.ok(ability.tags.includes("shanghai-zhongkao"));
 });
 
@@ -36,4 +35,10 @@ test("Shanghai zhongkao vocabulary tag is populated from the source list", () =>
   assert.equal(bank.zhongkao.matchedSourceRows, 1650);
   assert.equal(tag.count, 1658);
   assert.equal(bank.words.filter((word) => word.tags.includes("shanghai-zhongkao")).length, tag.count);
+});
+
+test("senior vocabulary tag is labeled as gaokao vocabulary", () => {
+  const tag = bank.tags.find((item) => item.id === "senior-candidate");
+  assert.ok(tag);
+  assert.equal(tag.label, "高考考纲词汇");
 });

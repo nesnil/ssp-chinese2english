@@ -2845,6 +2845,30 @@ function tagLabel(tags: WordTag[], id: string): string {
   return tags.find((tag) => tag.id === id)?.label || id;
 }
 
+function visibleWordTagIds(ids: string[], tags: WordTag[]): string[] {
+  const visible = new Set(tags.map((tag) => tag.id));
+  return ids.filter((id) => id !== "all" && visible.has(id));
+}
+
+function normalizeVisibleWordTags(ids: string[], tags: WordTag[]): string[] {
+  const unique = [...new Set(visibleWordTagIds(ids, tags))];
+  const hasConcreteTag = unique.some((id) => id !== "uncategorized");
+  if (hasConcreteTag) return unique.filter((id) => id !== "uncategorized");
+  return ["uncategorized"];
+}
+
+function availableWordTagsForInlineEdit(ids: string[], tags: WordTag[]): WordTag[] {
+  const current = visibleWordTagIds(ids, tags);
+  const hasConcreteTag = current.some((id) => id !== "uncategorized");
+  return tags.filter((tag) => !current.includes(tag.id) && (!hasConcreteTag || tag.id !== "uncategorized"));
+}
+
+function adminWordTagTone(id: string): string {
+  if (id === "shanghai-zhongkao") return " primary";
+  if (id === "senior-candidate") return " senior";
+  return "";
+}
+
 type QuestionSeasonMeta = { season: number; questionCount: number; days: Array<{ day: number; questionCount: number }> };
 
 function useQuestionMeta(): QuestionSeasonMeta[] {
@@ -3395,6 +3419,8 @@ function AdminWords() {
   const [editing, setEditing] = useState<AdminWord | "new" | null>(null);
   const [deleting, setDeleting] = useState<AdminWord | null>(null);
   const [generatingAudioId, setGeneratingAudioId] = useState<string | null>(null);
+  const [tagMenuWordId, setTagMenuWordId] = useState<string | null>(null);
+  const [savingTagWordId, setSavingTagWordId] = useState<string | null>(null);
   const wordTags = useWordTags();
 
   async function load() {
@@ -3437,6 +3463,33 @@ function AdminWords() {
       setError(err instanceof Error ? err.message : "发音生成失败");
     } finally {
       setGeneratingAudioId(null);
+    }
+  }
+
+  async function updateWordTags(item: AdminWord, nextTags: string[]) {
+    const normalizedTags = normalizeVisibleWordTags(nextTags, wordTags);
+    const previousItems = items;
+    setSavingTagWordId(item.id);
+    setTagMenuWordId(null);
+    setError("");
+    setItems((prev) => prev.map((word) => (word.id === item.id ? { ...word, tags: ["all", ...normalizedTags] } : word)));
+    try {
+      await api(`/api/admin/words/${encodeURIComponent(item.id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: item.name,
+          definitions: item.definitions,
+          examples: item.examples,
+          tags: normalizedTags
+        })
+      });
+      await load();
+    } catch (err) {
+      setItems(previousItems);
+      setError(err instanceof Error ? err.message : "分类保存失败");
+    } finally {
+      setSavingTagWordId(null);
     }
   }
 
@@ -3522,17 +3575,52 @@ function AdminWords() {
                 {item.definitions.map((d) => `${d.partOfSpeech || ""} ${d.meaning}`.trim()).join("；")}
               </p>
               {item.examples[0]?.english ? <p className="admin-ans">例：{item.examples[0].english}</p> : null}
-              {item.tags.filter((t) => t !== "all").length ? (
-                <div className="admin-tag-chips">
-                  {item.tags
-                    .filter((t) => t !== "all")
-                    .map((t) => (
-                      <span key={t} className={`admin-chip${t === "shanghai-zhongkao" ? " primary" : ""}`}>
-                        {tagLabel(wordTags, t)}
-                      </span>
-                    ))}
-                </div>
-              ) : null}
+              <div className="admin-tag-chips">
+                {visibleWordTagIds(item.tags, wordTags).map((t) => (
+                  <span key={t} className={`admin-chip editable${adminWordTagTone(t)}`}>
+                    {tagLabel(wordTags, t)}
+                    <button
+                      type="button"
+                      className="admin-chip-remove"
+                      title={`移除 ${tagLabel(wordTags, t)}`}
+                      aria-label={`移除 ${tagLabel(wordTags, t)}`}
+                      disabled={savingTagWordId === item.id}
+                      onClick={() => updateWordTags(item, visibleWordTagIds(item.tags, wordTags).filter((id) => id !== t))}
+                    >
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+                <span className="admin-tag-add-wrap">
+                  <button
+                    type="button"
+                    className="admin-chip-add"
+                    title="添加分类"
+                    aria-label={`给 ${item.name} 添加分类`}
+                    disabled={savingTagWordId === item.id}
+                    onClick={() => setTagMenuWordId((current) => (current === item.id ? null : item.id))}
+                  >
+                    {savingTagWordId === item.id ? <Loader2 className="spin" size={13} /> : <Plus size={13} />}
+                  </button>
+                  {tagMenuWordId === item.id ? (
+                    <div className="admin-tag-menu">
+                      {availableWordTagsForInlineEdit(item.tags, wordTags).map((tag) => (
+                        <button
+                          key={tag.id}
+                          type="button"
+                          className={`admin-tag-menu-item${adminWordTagTone(tag.id)}`}
+                          onClick={() => updateWordTags(item, [...visibleWordTagIds(item.tags, wordTags), tag.id])}
+                        >
+                          {tag.label}
+                        </button>
+                      ))}
+                      {availableWordTagsForInlineEdit(item.tags, wordTags).length === 0 ? (
+                        <span className="admin-tag-menu-empty">没有可添加分类</span>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </span>
+              </div>
             </div>
             <div className="admin-row-actions">
               <button className="icon-button" title="编辑" onClick={() => setEditing(item)}>
@@ -4407,7 +4495,8 @@ function AdminWordForm({ word, onClose, onSaved }: { word: AdminWord | null; onC
     setSubmitting(true);
     setError("");
     try {
-      const body = JSON.stringify({ name, definitions, examples, tags });
+      const visibleTags = wordTags.length ? normalizeVisibleWordTags(tags, wordTags) : tags;
+      const body = JSON.stringify({ name, definitions, examples, tags: visibleTags });
       if (isNew) {
         await api("/api/admin/words", {
           method: "POST",
@@ -4506,7 +4595,7 @@ function AdminWordForm({ word, onClose, onSaved }: { word: AdminWord | null; onC
           </div>
           <div className="admin-tag-options">
             {wordTags.map((tag) => (
-              <label key={tag.id} className={`admin-tag-option${tags.includes(tag.id) ? " checked" : ""}`}>
+              <label key={tag.id} className={`admin-tag-option${tags.includes(tag.id) ? " checked" : ""}${adminWordTagTone(tag.id)}`}>
                 <input type="checkbox" checked={tags.includes(tag.id)} onChange={() => toggleTag(tag.id)} />
                 {tag.label}
               </label>

@@ -2988,6 +2988,9 @@ button.history-card {
 }
 
 .admin-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 12px;
   font-weight: 700;
   color: #54637e;
@@ -2996,9 +2999,135 @@ button.history-card {
   padding: 2px 9px;
 }
 
+.admin-chip.editable {
+  position: relative;
+  min-height: 25px;
+  padding-right: 24px;
+}
+
 .admin-chip.primary {
   color: #1f6fd6;
   background: #e3eeff;
+}
+
+.admin-chip.senior {
+  color: #a85c00;
+  background: #fff0d6;
+}
+
+.admin-chip-remove {
+  position: absolute;
+  right: 7px;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  color: currentColor;
+  background: transparent;
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity 0.14s ease, background 0.14s ease;
+}
+
+.admin-chip-remove svg {
+  display: block;
+  width: 12px;
+  height: 12px;
+  stroke-width: 3;
+}
+
+.admin-chip:hover .admin-chip-remove,
+.admin-chip:focus-within .admin-chip-remove {
+  opacity: 0.86;
+}
+
+.admin-chip-remove:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.52);
+}
+
+.admin-chip-remove:disabled,
+.admin-chip-add:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.admin-tag-add-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.admin-chip-add {
+  width: 28px;
+  height: 25px;
+  display: inline-grid;
+  place-items: center;
+  border: 2px dashed #c9d5e6;
+  border-radius: 10px;
+  color: #62708b;
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: none;
+  transition: border-color 0.14s ease, color 0.14s ease, background 0.14s ease;
+}
+
+.admin-chip-add:hover {
+  color: #243047;
+  border-color: #9fb0c8;
+  background: #ffffff;
+}
+
+.admin-tag-menu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 7px);
+  z-index: 8;
+  min-width: 150px;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 2px solid #e1e9f4;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 14px 30px rgba(47, 79, 122, 0.18);
+}
+
+.admin-tag-menu-item {
+  min-height: 30px;
+  border: 0;
+  border-radius: 10px;
+  padding: 0 10px;
+  color: #54637e;
+  background: #f3f6fb;
+  font-size: 12px;
+  font-weight: 900;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.admin-tag-menu-item:hover {
+  background: #e9eef6;
+}
+
+.admin-tag-menu-item.primary {
+  color: #1f6fd6;
+  background: #e3eeff;
+}
+
+.admin-tag-menu-item.senior {
+  color: #a85c00;
+  background: #fff0d6;
+}
+
+.admin-tag-menu-empty {
+  padding: 6px 8px;
+  color: #7c8aa3;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .admin-tag-options {
@@ -3027,9 +3156,37 @@ button.history-card {
   color: #1f6fd6;
 }
 
+.admin-tag-option.primary {
+  color: #1f6fd6;
+  background: #f3f8ff;
+  border-color: #d9e8ff;
+}
+
+.admin-tag-option.primary.checked {
+  color: #1f6fd6;
+  background: #e3eeff;
+  border-color: #7fb6ff;
+}
+
+.admin-tag-option.senior {
+  color: #a85c00;
+  background: #fff8ec;
+  border-color: #ffe1ad;
+}
+
+.admin-tag-option.senior.checked {
+  color: #8a4b00;
+  background: #fff0d6;
+  border-color: #ffbd66;
+}
+
 .admin-tag-option input {
   accent-color: #1f6fd6;
   cursor: pointer;
+}
+
+.admin-tag-option.senior input {
+  accent-color: #f59e0b;
 }
 
 .admin-list {

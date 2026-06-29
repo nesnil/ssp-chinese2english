@@ -39,7 +39,7 @@ const WORD_PROFILES: Record<
     scopeTag: "senior-candidate",
     title: "高考词汇练习",
     heroTitle: "听发音，默写单词和中文意思",
-    subtitle: "高中候选词汇",
+    subtitle: "高考考纲词汇",
     includesExamples: false
   }
 };

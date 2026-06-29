@@ -1,6 +1,6 @@
 {
   "name": "c2e-practice",
-  "version": "1.5.9",
+  "version": "1.5.10",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,7 +11,7 @@
     "build:client": "vite build",
     "build:server": "tsc -p tsconfig.server.json",
     "build": "npm run build:data && npm run validate:data && npm run build:client && npm run build:server",
-    "dev": "npm run build:data && tsx watch src/server/index.ts",
+    "dev": "npm run build:data && npm run build:client && tsx watch src/server/index.ts",
     "start": "node dist/server/index.js",
     "test": "npm run build:data && npm run validate:data && npm run build:server && node --test tests/*.test.mjs",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit"
