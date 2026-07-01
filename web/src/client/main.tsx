@@ -1471,7 +1471,7 @@ function WalletScreen({ onBack }: { onBack: () => void }) {
                         {formatDate(tx.createdAt)}
                       </small>
                     </div>
-                    <b className={`wallet-amount ${tx.amountCents >= 0 ? "gain" : "loss"}`}>{signedYuan(tx.amountCents)}</b>
+                    <b className={`wallet-amount ${tx.amountCents >= 0 ? "gain" : "loss"}`}>{formatYuanDelta(tx.amountCents)}</b>
                   </article>
                 ))
               ) : (
@@ -2475,7 +2475,7 @@ function Feedback({
           </p>
         ) : null}
         {wallet && wallet.reason === "fail" && wallet.change < 0 ? (
-          <p className="money-note loss">小钱包 -{formatYuan(-wallet.change)}，下次赚回来！</p>
+          <p className="money-note loss">小钱包 {formatYuan(wallet.change)}，下次赚回来！</p>
         ) : null}
         {isPerfect ? (
           <p className="perfect-note"><b>太棒了：</b>{grade.suggestion}</p>
@@ -4451,7 +4451,7 @@ function AdminWallet() {
                         {formatDate(tx.createdAt)}
                       </small>
                     </div>
-                    <b className={`wallet-amount ${tx.amountCents >= 0 ? "gain" : "loss"}`}>{signedYuan(tx.amountCents)}</b>
+                    <b className={`wallet-amount ${tx.amountCents >= 0 ? "gain" : "loss"}`}>{formatYuanDelta(tx.amountCents)}</b>
                   </article>
                 ))
               ) : (
@@ -4889,15 +4889,17 @@ function formatPhonetics(phonetics: string[]): string {
     .join("  ");
 }
 
-// 金额以分存储,整元显示 ¥3,非整元显示 ¥3.50。
+// 金额以分存储,整元显示 ¥3,非整元显示 ¥3.50；负数显示 ¥-3。
 function formatYuan(cents: number): string {
   const abs = Math.abs(cents);
   const text = abs % 100 === 0 ? String(abs / 100) : (abs / 100).toFixed(2);
-  return `${cents < 0 ? "-" : ""}¥${text}`;
+  return `¥${cents < 0 ? "-" : ""}${text}`;
 }
 
-function signedYuan(cents: number): string {
-  return cents >= 0 ? `+${formatYuan(cents)}` : formatYuan(cents);
+// 流水动作金额使用动作符号：+¥3 / -¥3。
+function formatYuanDelta(cents: number): string {
+  if (cents >= 0) return `+${formatYuan(cents)}`;
+  return `-${formatYuan(-cents)}`;
 }
 
 // 模拟银行卡的余额卡片：logo + 卡号 + 余额，鼠标移动时 3D 倾斜并带高光跟随。

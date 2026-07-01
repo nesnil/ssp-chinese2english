@@ -2543,7 +2543,9 @@ function randomWholeYuanCents(minCents: number, maxCents: number): number {
 }
 
 function yuanText(cents: number): string {
-  return cents % 100 === 0 ? `¥${cents / 100}` : `¥${(cents / 100).toFixed(2)}`;
+  const abs = Math.abs(cents);
+  const text = abs % 100 === 0 ? String(abs / 100) : (abs / 100).toFixed(2);
+  return `¥${cents < 0 ? "-" : ""}${text}`;
 }
 
 function hashToken(token: string): string {
