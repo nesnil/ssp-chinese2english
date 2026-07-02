@@ -17,6 +17,7 @@ export function loadConfig(): AppConfig {
     appPassword: process.env.APP_PASSWORD,
     adminPassword: process.env.ADMIN_PASSWORD,
     sessionSecret: process.env.SESSION_SECRET,
+    siriApiToken: process.env.SIRI_API_TOKEN,
     deepseekBaseUrl: process.env.DEEPSEEK_BASE_URL,
     deepseekApiKey: process.env.DEEPSEEK_API_KEY,
     deepseekModel: process.env.DEEPSEEK_MODEL,

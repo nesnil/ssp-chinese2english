@@ -11,7 +11,7 @@ type GradeRuntimeConfig = AiModelConfig & {
   reviewScoreThreshold: number;
 };
 
-function chatCompletionsUrl(baseUrl: string): string {
+export function chatCompletionsUrl(baseUrl: string): string {
   const trimmed = baseUrl.replace(/\/+$/, "");
   if (trimmed.endsWith("/chat/completions")) return trimmed;
   return `${trimmed}/chat/completions`;

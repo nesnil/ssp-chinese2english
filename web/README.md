@@ -71,6 +71,7 @@ npm run typecheck
 可选：
 
 - `PORT`，默认 `3000`
+- `SIRI_API_TOKEN`，未设则 Siri 语音钱包端点（`/api/siri/wallet*`）返回 503（见 `docs/siri-shortcut.md`）
 - `DATABASE_PATH`，默认 `/app/data/c2e.sqlite`
 - `AI_TIMEOUT_MS`，默认 `30000`
 - `REVIEW_SCORE_THRESHOLD`，默认 `80`

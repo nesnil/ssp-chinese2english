@@ -42,6 +42,13 @@
 - 余额达到**提现门槛**（默认 10 元）可发起提现，家长在后台标记「已发放」后清零。
 - 金额与门槛均由家长在后台调；**不走环境变量**。
 
+### Siri 语音控制钱包（家长专用）
+- 配置 iOS 快捷指令后，对 Siri 说一句中文即可给钱包加钱/扣钱/查余额（HomePod 开启「个人请求」后同样可用）。
+- 自然语言指令（如「加 5 元，因为今天作业全对」）由服务端调用已配置的 AI 模型解析意图；金额、动作白名单、单次上限（100 元）均在服务端强制校验，听不懂的内容不会动钱包。
+- 三个 API 端点（`/api/siri/wallet*`）使用独立的 `SIRI_API_TOKEN` Bearer Token 鉴权，与登录会话完全分离；所有响应带 `speech` 字段供 Siri 直接朗读。
+- 语音操作以「手动调整」类型入账，孩子端流水与后台账本均可见金额与备注。
+- 快捷指令搭建步骤见 [docs/siri-shortcut.md](docs/siri-shortcut.md)。
+
 ### 后台管理（家长专用）
 - **独立管理员口令**（`ADMIN_PASSWORD`），与孩子的家庭口令分离；孩子进不了后台。
 - 入口：登录页的「管理员登录」链接，或 `#admin` URL hash，或管理员登录后顶栏的齿轮。
@@ -165,6 +172,7 @@ docker build --build-arg VITE_BASE_PATH=/subpath/ -t c2e-practice:latest .
 | 变量 | 默认 | 说明 |
 | --- | --- | --- |
 | `ADMIN_PASSWORD` | 未设 | 启用后台管理；不设则 `/api/admin/login` 返回 503。|
+| `SIRI_API_TOKEN` | 未设 | 启用 Siri 语音钱包端点（`/api/siri/wallet*`）；不设则这些端点返回 503。生成方式：`openssl rand -hex 24`。|
 | `PORT` | `3000` | 容器内端口。|
 | `TZ` | `Asia/Shanghai` | 服务器时区；影响活动日历的「今天」判断与时间显示。|
 | `DATABASE_PATH` | `/app/data/c2e.sqlite` | SQLite 文件路径。|

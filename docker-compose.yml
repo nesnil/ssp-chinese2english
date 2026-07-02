@@ -15,6 +15,7 @@ services:
       APP_PASSWORD: "${APP_PASSWORD:?APP_PASSWORD is required}"
       ADMIN_PASSWORD: "${ADMIN_PASSWORD:-}"
       SESSION_SECRET: "${SESSION_SECRET:?SESSION_SECRET is required}"
+      SIRI_API_TOKEN: "${SIRI_API_TOKEN:-}"
       TZ: "${TZ:-Asia/Shanghai}"
       DEEPSEEK_BASE_URL: "${DEEPSEEK_BASE_URL:?DEEPSEEK_BASE_URL is required}"
       DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:?DEEPSEEK_API_KEY is required}"

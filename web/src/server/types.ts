@@ -159,6 +159,7 @@ export type AppConfig = {
   appPassword?: string;
   adminPassword?: string;
   sessionSecret?: string;
+  siriApiToken?: string;
   deepseekBaseUrl?: string;
   deepseekApiKey?: string;
   deepseekModel?: string;

@@ -5,6 +5,7 @@ import { loadConfig, publicDir } from "./config.js";
 import { registerAdminRoutes, walletTxToJson } from "./adminRoutes.js";
 import { AppDatabase, computeDayProgress, shanghaiDateString, type WordPracticeKind } from "./db.js";
 import { AiConfigError, gradeAnswer, gradeExampleRecall, gradeWordRecall } from "./grader.js";
+import { intentToAdjustCents, parseWalletCommand } from "./walletIntent.js";
 import { generateWordAudio } from "./tts.js";
 import { getBank, getDayQuestions, getQuestion, initQuestionBank, loadSeedQuestionBank, toPublicQuestion } from "./questionBank.js";
 import type { WordEntry } from "./types.js";
@@ -67,6 +68,7 @@ app.get("/api/health", (_req, res) => {
     ttsProvider: ttsSettings.provider,
     generatedAudioWritable: generatedAudioDirWritable(),
     authConfigured: Boolean(config.appPassword && config.sessionSecret),
+    siriConfigured: Boolean(config.siriApiToken),
     questionBank: {
       totalDays: getBank().totalDays,
       totalQuestions: getBank().totalQuestions,
@@ -682,6 +684,63 @@ app.post("/api/wallet/withdraw", requireAuth, (_req, res) => {
   }
 });
 
+// --- Siri 快捷指令（语音钱包，Bearer Token 鉴权，见 docs/siri-shortcut.md） ---
+
+app.get("/api/siri/wallet", requireSiriToken, (_req, res) => {
+  const balanceCents = database.getWalletBalance();
+  res.json({ ok: true, balanceCents, speech: `钱包现在有 ${speechYuan(balanceCents)}。` });
+});
+
+app.post("/api/siri/wallet/adjust", requireSiriToken, (req, res) => {
+  const amountYuan = Number(req.body?.amountYuan);
+  const note = String(req.body?.note || "").trim().slice(0, 100);
+  const action = amountYuan > 0 ? "add" : "deduct";
+  try {
+    const amountCents = intentToAdjustCents({ action, amountYuan: Math.abs(amountYuan), note: note || null });
+    const result = database.adjustWallet(amountCents, note || "Siri 语音调整");
+    res.json({ ok: true, balanceCents: result.balance, speech: adjustSpeech(amountCents, note || null, result.balance) });
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : "金额无效。" });
+  }
+});
+
+app.post("/api/siri/wallet/command", requireSiriToken, async (req, res) => {
+  const text = String(req.body?.text || "").trim();
+  if (!text) {
+    res.json({ ok: false, action: "unknown", balanceCents: database.getWalletBalance(), speech: "没听到内容，请再说一次。" });
+    return;
+  }
+
+  let intent;
+  try {
+    intent = await parseWalletCommand(currentGradeConfig(), text);
+  } catch (error) {
+    const speech = error instanceof AiConfigError ? "AI 模型还没配置好，暂时无法理解语音指令。" : "解析出了点问题，请稍后再试。";
+    res.json({ ok: false, action: "unknown", balanceCents: database.getWalletBalance(), speech });
+    return;
+  }
+
+  if (intent.action === "query") {
+    const balanceCents = database.getWalletBalance();
+    res.json({ ok: true, action: "query", balanceCents, speech: `钱包现在有 ${speechYuan(balanceCents)}。` });
+    return;
+  }
+
+  // add / deduct / unknown：金额或意图不合规时只朗读原因，不动钱包。
+  try {
+    const amountCents = intentToAdjustCents(intent);
+    const result = database.adjustWallet(amountCents, intent.note || "Siri 语音调整");
+    res.json({ ok: true, action: intent.action, balanceCents: result.balance, speech: adjustSpeech(amountCents, intent.note, result.balance) });
+  } catch (error) {
+    res.json({
+      ok: false,
+      action: intent.action,
+      balanceCents: database.getWalletBalance(),
+      speech: error instanceof Error ? error.message : "没听懂，请再说一次，比如：加 5 元。"
+    });
+  }
+});
+
 registerAdminRoutes(app, database, config, requireAdmin);
 
 app.use(express.static(publicDir()));
@@ -726,6 +785,32 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
     return;
   }
   next();
+}
+
+function requireSiriToken(req: Request, res: Response, next: NextFunction) {
+  if (!config.siriApiToken) {
+    res.status(503).json({ error: "SIRI_API_TOKEN 未配置。" });
+    return;
+  }
+  const auth = String(req.headers.authorization || "");
+  const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
+  if (!token || !timingSafeEqual(token, config.siriApiToken)) {
+    res.status(401).json({ error: "无效的访问令牌。" });
+    return;
+  }
+  next();
+}
+
+function speechYuan(cents: number): string {
+  const abs = Math.abs(cents);
+  const text = abs % 100 === 0 ? String(abs / 100) : (abs / 100).toFixed(2);
+  return `${cents < 0 ? "负 " : ""}${text} 元`;
+}
+
+function adjustSpeech(amountCents: number, note: string | null, balanceCents: number): string {
+  const verb = amountCents > 0 ? "已加" : "已扣";
+  const noteText = note ? `备注“${note}”，` : "";
+  return `${verb} ${speechYuan(Math.abs(amountCents))}，${noteText}当前余额 ${speechYuan(balanceCents)}。`;
 }
 
 function currentGradeConfig() {
