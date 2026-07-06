@@ -56,6 +56,7 @@
 - **单词管理**：列出全部单词，按**分类**（中考考纲/高考考纲词汇/四六级候选等）筛选、**A–Z 首字母**筛选、搜索、分页；增删改查，编辑词性（下拉）、释义、例句、分类（多选），列表内可试听发音，缺发音时可生成/重新生成 mp3。
 - **AI 模型配置**：在后台「模型」页填写批改用的 Base URL、API Key、模型名、超时（毫秒），保存即时生效、无需改环境变量重启；提供「测试连接」按钮先验证再保存。保存的配置存入 SQLite（`model_settings` 表），优先级高于启动时的 `DEEPSEEK_*` 环境变量；未保存任何配置时回退到环境变量。API Key 仅写不回显。
 - **TTS 发音模型配置**：后台「模型」页单独配置发音 provider，支持 OpenAI-compatible 与火山引擎；火山新版配置包含 Base URL、API Key、Resource ID、Speaker、Encoding、超时。保存到 SQLite（`tts_settings` 表），优先级高于启动时的 `TTS_*` 环境变量；API Key 仅写不回显。生成音频保存在外部数据卷的 `word-audio/generated/`。
+- **模型历史**：后台「历史」页按批改 / TTS / Siri、成功 / 失败筛选模型调用记录，支持搜索和查看请求/响应摘要，便于排查批改、发音生成和语音钱包解析问题；记录存入 SQLite（`model_interactions` 表），不保存 API Key。
 - **钱包管理**：在后台「钱包」页设置奖励/扣除分数条件、奖惩金额区间与提现门槛（单位元），以及高考词汇整组结算的平均分阈值；处理待发放的提现（标记「已发放」），手动 ±调整余额（需填原因），查看分页流水。
 - 编辑即时生效（写入 SQLite 后内存缓存重建），无需重新构建或部署。**ID 稳定**：题目/单词的关联键不变，删除只软警告、不级联删历史记录。
 
@@ -75,7 +76,7 @@
 - 这两个 JSON 是 gitignore 的**构建产物**，会随 Docker 镜像打包。
 - 服务端**首次启动**把它们**播种**进 SQLite 的 `questions` / `words` 表（仅当表为空，幂等）；之后从 SQLite 读、建内存缓存，后台编辑写回 SQLite 并重建缓存。即：JSON 只是初始种子，真正的可编辑数据源是 `/app/data` 卷里的 SQLite，跨镜像重建依然保留。
 
-**批改（`grader.ts`）** 以严格 JSON 模式调用 DeepSeek，中文系统提示。失败（超时/非 200/非 JSON）不抛错给前端，而是返回 `score: 0` 的兜底结果并标记待批改；只有缺少 DeepSeek 配置才抛 `AiConfigError`（映射为 503）。
+**批改（`grader.ts`）** 以严格 JSON 模式调用 OpenAI 兼容模型，中文系统提示。失败（超时/非 200/非 JSON）不抛错给前端，而是返回 `score: 0` 的兜底结果并标记待批改；只有缺少模型配置才抛 `AiConfigError`（映射为 503）。批改、TTS、Siri 语音解析都会写入 `model_interactions`，后台可查看调用类型、状态、引用对象、耗时、请求/响应摘要和错误信息；日志不包含 API Key。
 
 **鉴权** 家庭口令登录（`POST /api/login`）签发 HMAC 签名的 httpOnly Cookie；`requireAuth` 守卫所有 `/api/*`（除 health 与登录路由）。管理员口令走 `POST /api/admin/login`，在会话上标记 `role='admin'`，`requireAdmin` 守卫 `/api/admin/*`。
 

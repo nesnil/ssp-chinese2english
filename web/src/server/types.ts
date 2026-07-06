@@ -86,6 +86,34 @@ export type TtsSettingsInput = {
   encoding?: string;
 };
 
+export type ModelInteractionKind = "grading" | "tts" | "siri";
+
+export type ModelInteractionStatus = "success" | "error";
+
+export type ModelInteractionLogEntry = {
+  kind: ModelInteractionKind;
+  operation: string;
+  refType?: string | null;
+  refId?: string | null;
+  status: ModelInteractionStatus;
+  provider?: string | null;
+  model?: string | null;
+  request: unknown;
+  response?: unknown;
+  errorMessage?: string | null;
+  durationMs?: number | null;
+};
+
+export type ModelInteractionLogger = (entry: ModelInteractionLogEntry) => void;
+
+export type ModelInteractionContext = {
+  kind: ModelInteractionKind;
+  operation: string;
+  refType?: string | null;
+  refId?: string | null;
+  log?: ModelInteractionLogger;
+};
+
 export type WalletSettings = {
   rewardScore: number;
   rewardMinCents: number;

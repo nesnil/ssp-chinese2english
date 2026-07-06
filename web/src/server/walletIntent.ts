@@ -1,5 +1,6 @@
 import { AiConfigError, chatCompletionsUrl } from "./grader.js";
-import type { AiModelConfig } from "./types.js";
+import { errorMessage, logModelInteraction, modelHistoryRequest, trimHistoryText } from "./modelHistory.js";
+import type { AiModelConfig, ModelInteractionContext } from "./types.js";
 
 export type WalletIntentAction = "add" | "deduct" | "query" | "unknown";
 
@@ -67,34 +68,52 @@ export function intentToAdjustCents(intent: WalletIntent): number {
   return intent.action === "add" ? cents : -cents;
 }
 
-export async function parseWalletCommand(config: AiModelConfig, text: string): Promise<WalletIntent> {
+export async function parseWalletCommand(
+  config: AiModelConfig,
+  text: string,
+  history?: ModelInteractionContext
+): Promise<WalletIntent> {
   if (!config.baseUrl || !config.apiKey || !config.model) {
+    logModelInteraction(history, {
+      status: "error",
+      provider: "openai-compatible",
+      model: config.model,
+      request: { text },
+      errorMessage: "AI 模型配置不完整。"
+    });
     throw new AiConfigError("AI 模型配置不完整，请管理员先在后台配置 Base URL、API Key 和模型名称。");
   }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
+  const startedAt = Date.now();
+  const requestBody = {
+    model: config.model,
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: text }
+    ],
+    temperature: 0,
+    response_format: { type: "json_object" }
+  };
+  let status: "success" | "error" = "success";
+  let responseHistory: unknown;
+  let failure: string | null = null;
 
   try {
-    const response = await fetch(chatCompletionsUrl(config.baseUrl), {
+    const url = chatCompletionsUrl(config.baseUrl);
+    const response = await fetch(url, {
       method: "POST",
       signal: controller.signal,
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${config.apiKey}`
       },
-      body: JSON.stringify({
-        model: config.model,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: text }
-        ],
-        temperature: 0,
-        response_format: { type: "json_object" }
-      })
+      body: JSON.stringify(requestBody)
     });
 
     const bodyText = await response.text();
+    responseHistory = { httpStatus: response.status, bodyText: trimHistoryText(bodyText) };
     if (!response.ok) {
       throw new Error(`DeepSeek HTTP ${response.status}: ${bodyText.slice(0, 400)}`);
     }
@@ -102,11 +121,29 @@ export async function parseWalletCommand(config: AiModelConfig, text: string): P
     const body = JSON.parse(bodyText) as { choices?: Array<{ message?: { content?: string } }> };
     const content = body.choices?.[0]?.message?.content;
     if (!content) return UNKNOWN_INTENT;
-    return normalizeWalletIntent(JSON.parse(content));
+    const intent = normalizeWalletIntent(JSON.parse(content));
+    responseHistory = {
+      httpStatus: response.status,
+      bodyText: trimHistoryText(bodyText),
+      content: trimHistoryText(content),
+      intent
+    };
+    return intent;
   } catch (error) {
+    status = "error";
+    failure = errorMessage(error, "Siri 语音指令解析失败。");
     console.error("parseWalletCommand failed:", error);
     return UNKNOWN_INTENT;
   } finally {
     clearTimeout(timeout);
+    logModelInteraction(history, {
+      status,
+      provider: "openai-compatible",
+      model: config.model,
+      request: modelHistoryRequest(chatCompletionsUrl(config.baseUrl), requestBody),
+      response: responseHistory,
+      errorMessage: failure,
+      durationMs: Date.now() - startedAt
+    });
   }
 }

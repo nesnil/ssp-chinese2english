@@ -7,6 +7,7 @@ import type {
   AiModelSettings,
   AppConfig,
   GradeResult,
+  ModelInteractionLogEntry,
   TtsProvider,
   TtsSettings,
   TtsSettingsInput,
@@ -193,6 +194,30 @@ export type WalletTransactionRow = {
   created_at: string;
 };
 
+export type ModelInteractionRow = {
+  id: number;
+  kind: string;
+  operation: string;
+  ref_type: string | null;
+  ref_id: string | null;
+  status: string;
+  provider: string | null;
+  model: string | null;
+  request_json: string;
+  response_json: string | null;
+  error_message: string | null;
+  duration_ms: number | null;
+  created_at: string;
+};
+
+export type ModelInteractionListParams = {
+  kind?: string;
+  status?: string;
+  q?: string;
+  limit: number;
+  offset: number;
+};
+
 export type ActivityPracticeStatus = "none" | "partial" | "complete";
 
 export type ActivityPracticeSummary = {
@@ -347,6 +372,26 @@ export class AppDatabase {
         value TEXT NOT NULL,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
+
+      CREATE TABLE IF NOT EXISTS model_interactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        kind TEXT NOT NULL,
+        operation TEXT NOT NULL,
+        ref_type TEXT,
+        ref_id TEXT,
+        status TEXT NOT NULL,
+        provider TEXT,
+        model TEXT,
+        request_json TEXT NOT NULL,
+        response_json TEXT,
+        error_message TEXT,
+        duration_ms INTEGER,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_model_interactions_kind_created ON model_interactions(kind, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_model_interactions_status_created ON model_interactions(status, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_model_interactions_ref ON model_interactions(ref_type, ref_id, created_at DESC);
 
       CREATE TABLE IF NOT EXISTS word_sessions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -592,6 +637,79 @@ export class AppDatabase {
   getReferenceMeta(key: string): string | null {
     const row = this.db.prepare("SELECT value FROM reference_meta WHERE key = ?").get(key) as { value: string } | undefined;
     return row ? row.value : null;
+  }
+
+  recordModelInteraction(entry: ModelInteractionLogEntry): number {
+    const result = this.db
+      .prepare(
+        `INSERT INTO model_interactions (
+          kind, operation, ref_type, ref_id, status, provider, model,
+          request_json, response_json, error_message, duration_ms
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        entry.kind,
+        entry.operation,
+        entry.refType ?? null,
+        entry.refId ?? null,
+        entry.status,
+        entry.provider ?? null,
+        entry.model ?? null,
+        stableJson(entry.request ?? null),
+        entry.response === undefined ? null : stableJson(entry.response),
+        entry.errorMessage ?? null,
+        entry.durationMs ?? null
+      );
+    return Number(result.lastInsertRowid);
+  }
+
+  modelInteractions(params: ModelInteractionListParams): { total: number; items: ModelInteractionRow[] } {
+    const conditions: string[] = [];
+    const values: Array<string | number> = [];
+    const kind = (params.kind || "").trim();
+    const status = (params.status || "").trim();
+    const q = (params.q || "").trim();
+    if (kind) {
+      conditions.push("kind = ?");
+      values.push(kind);
+    }
+    if (status) {
+      conditions.push("status = ?");
+      values.push(status);
+    }
+    if (q) {
+      const like = `%${q}%`;
+      conditions.push(`(
+        operation LIKE ? OR ref_id LIKE ? OR provider LIKE ? OR model LIKE ? OR
+        request_json LIKE ? OR response_json LIKE ? OR error_message LIKE ?
+      )`);
+      values.push(like, like, like, like, like, like, like);
+    }
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    const total = (this.db.prepare(`SELECT COUNT(*) AS n FROM model_interactions ${where}`).get(...values) as { n: number }).n;
+    const items = this.db
+      .prepare(
+        `SELECT id, kind, operation, ref_type, ref_id, status, provider, model,
+                request_json, response_json, error_message, duration_ms, created_at
+         FROM model_interactions ${where}
+         ORDER BY id DESC
+         LIMIT ? OFFSET ?`
+      )
+      .all(...values, params.limit, params.offset) as ModelInteractionRow[];
+    return { total, items };
+  }
+
+  getModelInteraction(id: number): ModelInteractionRow | null {
+    return (
+      (this.db
+        .prepare(
+          `SELECT id, kind, operation, ref_type, ref_id, status, provider, model,
+                  request_json, response_json, error_message, duration_ms, created_at
+           FROM model_interactions
+           WHERE id = ?`
+        )
+        .get(id) as ModelInteractionRow | undefined) || null
+    );
   }
 
   getAiModelSettings(fallback: AppConfig): AiModelSettings {
@@ -2474,6 +2592,14 @@ export function computeDayProgress(latestRows: SubmissionRow[], dayQuestionCount
 function stringSetting(value: string | undefined, fallback: string | undefined): string | undefined {
   const text = value === undefined ? fallback : value;
   return text && text.trim() ? text.trim() : undefined;
+}
+
+function stableJson(value: unknown): string {
+  try {
+    return JSON.stringify(value);
+  } catch (error) {
+    return JSON.stringify({ serializationError: error instanceof Error ? error.message : "无法序列化日志内容。" });
+  }
 }
 
 function numberSetting(value: string | undefined, fallback: number): number {

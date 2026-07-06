@@ -358,7 +358,13 @@ app.get("/api/word-audio/:wordId", requireAuth, async (req, res) => {
     const settings = database.getTtsSettings(config);
     if (settings.configured) {
       try {
-        const generated = await generateWordAudio(config, settings, word);
+        const generated = await generateWordAudio(config, settings, word, fetch, {
+          kind: "tts",
+          operation: "word-audio-generate",
+          refType: "word",
+          refId: word.id,
+          log: (entry) => database.recordModelInteraction(entry)
+        });
         database.updateWordAudioPath(word.id, generated.relativePath);
         reloadWordBank();
         word = getWord(word.id) || word;
@@ -528,8 +534,20 @@ app.post("/api/word-submissions", requireAuth, async (req, res, next) => {
 
     const grade =
       phase === "word"
-        ? await gradeWordRecall(currentGradeConfig(), word, { wordAnswer, meaningAnswers })
-        : await gradeExampleRecall(currentGradeConfig(), word, exampleAnswers);
+        ? await gradeWordRecall(currentGradeConfig(), word, { wordAnswer, meaningAnswers }, {
+            kind: "grading",
+            operation: "word-recall",
+            refType: "word",
+            refId: word.id,
+            log: (entry) => database.recordModelInteraction(entry)
+          })
+        : await gradeExampleRecall(currentGradeConfig(), word, exampleAnswers, {
+            kind: "grading",
+            operation: "word-example",
+            refType: "word",
+            refId: word.id,
+            log: (entry) => database.recordModelInteraction(entry)
+          });
     const submissionId = database.saveWordSubmission({
       sessionId,
       practiceKind: profile.kind,
@@ -597,7 +615,13 @@ app.post("/api/submissions", requireAuth, async (req, res, next) => {
       }
     }
 
-    const grade = await gradeAnswer(currentGradeConfig(), question, answer);
+    const grade = await gradeAnswer(currentGradeConfig(), question, answer, {
+      kind: "grading",
+      operation: "sentence-grade",
+      refType: "question",
+      refId: question.id,
+      log: (entry) => database.recordModelInteraction(entry)
+    });
     const submissionId = database.saveSubmission({
       questionId,
       season: question.season,
@@ -713,7 +737,13 @@ app.post("/api/siri/wallet/command", requireSiriToken, async (req, res) => {
 
   let intent;
   try {
-    intent = await parseWalletCommand(currentGradeConfig(), text);
+    intent = await parseWalletCommand(currentGradeConfig(), text, {
+      kind: "siri",
+      operation: "siri-wallet-command",
+      refType: "wallet",
+      refId: "command",
+      log: (entry) => database.recordModelInteraction(entry)
+    });
   } catch (error) {
     const speech = error instanceof AiConfigError ? "AI 模型还没配置好，暂时无法理解语音指令。" : "解析出了点问题，请稍后再试。";
     res.json({ ok: false, action: "unknown", balanceCents: database.getWalletBalance(), speech });

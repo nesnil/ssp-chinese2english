@@ -1,6 +1,6 @@
 import type { Express, Request, RequestHandler } from "express";
 import type { AiModelConfig, AppConfig, TtsSettings, TtsSettingsInput, WordDefinition, WordExample } from "./types.js";
-import { AppDatabase, type WalletTransactionRow } from "./db.js";
+import { AppDatabase, type ModelInteractionRow, type WalletTransactionRow } from "./db.js";
 import { AiConfigError, testAiModelConnection } from "./grader.js";
 import { getBank, reloadQuestionBank } from "./questionBank.js";
 import { getWordBank, reloadWordBank, resolveAudioPathByName } from "./wordBank.js";
@@ -9,6 +9,7 @@ import { generateWordAudio, testTtsConnection, TtsConfigError } from "./tts.js";
 const QUESTIONS_PAGE_MAX = 200;
 const WORDS_PAGE_MAX = 200;
 const WALLET_PAGE_MAX = 200;
+const MODEL_HISTORY_PAGE_MAX = 100;
 
 export function registerAdminRoutes(
   app: Express,
@@ -57,12 +58,44 @@ export function registerAdminRoutes(
     }
 
     try {
-      await testAiModelConnection(input);
+      await testAiModelConnection(input, {
+        kind: "grading",
+        operation: "model-test",
+        refType: "settings",
+        refId: "grading",
+        log: (entry) => database.recordModelInteraction(entry)
+      });
       res.json({ ok: true, message: "模型连接测试通过。" });
     } catch (error) {
       const message = error instanceof Error ? error.message : "模型连接测试失败。";
       res.status(error instanceof AiConfigError ? 400 : 502).json({ error: message });
     }
+  });
+
+  app.get("/api/admin/model-history", requireAdmin, (req, res) => {
+    const { limit, offset } = pageParams(req, MODEL_HISTORY_PAGE_MAX);
+    const { total, items } = database.modelInteractions({
+      kind: modelHistoryKind(req.query.kind),
+      status: modelHistoryStatus(req.query.status),
+      q: String(req.query.q || "").trim(),
+      limit,
+      offset
+    });
+    res.json({ total, limit, offset, items: items.map(adminModelHistorySummary) });
+  });
+
+  app.get("/api/admin/model-history/:id", requireAdmin, (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ error: "历史记录 ID 无效。" });
+      return;
+    }
+    const row = database.getModelInteraction(id);
+    if (!row) {
+      res.status(404).json({ error: "没有找到这条模型历史。" });
+      return;
+    }
+    res.json(adminModelHistoryDetail(row));
   });
 
   // --- TTS settings (单词发音模型) ---
@@ -85,7 +118,13 @@ export function registerAdminRoutes(
     const current = database.getTtsSettings(config);
     const settings = ttsSettingsFromInput(readTtsSettingsInput(req.body, current), current);
     try {
-      await testTtsConnection(settings);
+      await testTtsConnection(settings, fetch, {
+        kind: "tts",
+        operation: "tts-test",
+        refType: "settings",
+        refId: settings.provider,
+        log: (entry) => database.recordModelInteraction(entry)
+      });
       res.json({ ok: true, message: "TTS 连接测试通过。" });
     } catch (error) {
       const message = error instanceof Error ? error.message : "TTS 连接测试失败。";
@@ -433,7 +472,13 @@ export function registerAdminRoutes(
     const settings = database.getTtsSettings(config);
     if (!settings.configured) return { status: "skipped", message: "TTS 未配置。" };
     try {
-      const generated = await generateWordAudio(config, settings, { id: row.id, name: row.name });
+      const generated = await generateWordAudio(config, settings, { id: row.id, name: row.name }, fetch, {
+        kind: "tts",
+        operation: "word-audio-generate",
+        refType: "word",
+        refId: row.id,
+        log: (entry) => database.recordModelInteraction(entry)
+      });
       database.updateWordAudioPath(id, generated.relativePath);
       return { status: "generated" };
     } catch (error) {
@@ -580,6 +625,56 @@ export function walletTxToJson(row: WalletTransactionRow) {
     note: row.note,
     createdAt: row.created_at
   };
+}
+
+function adminModelHistorySummary(row: ModelInteractionRow) {
+  return {
+    id: row.id,
+    kind: row.kind,
+    operation: row.operation,
+    refType: row.ref_type,
+    refId: row.ref_id,
+    status: row.status,
+    provider: row.provider,
+    model: row.model,
+    errorMessage: row.error_message,
+    durationMs: row.duration_ms,
+    createdAt: row.created_at,
+    requestPreview: jsonPreview(row.request_json),
+    responsePreview: row.response_json ? jsonPreview(row.response_json) : ""
+  };
+}
+
+function adminModelHistoryDetail(row: ModelInteractionRow) {
+  return {
+    ...adminModelHistorySummary(row),
+    request: parseJson(row.request_json),
+    response: row.response_json ? parseJson(row.response_json) : null
+  };
+}
+
+function modelHistoryKind(value: unknown): string | undefined {
+  const text = String(value || "").trim();
+  return text === "grading" || text === "tts" || text === "siri" ? text : undefined;
+}
+
+function modelHistoryStatus(value: unknown): string | undefined {
+  const text = String(value || "").trim();
+  return text === "success" || text === "error" ? text : undefined;
+}
+
+function jsonPreview(raw: string): string {
+  const parsed = parseJson(raw);
+  const compact = typeof parsed === "string" ? parsed : JSON.stringify(parsed);
+  return compact.length > 180 ? `${compact.slice(0, 180)}...` : compact;
+}
+
+function parseJson(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return raw;
+  }
 }
 
 // 各字段缺省时保持现值;非数字会传 NaN 进 db 校验并以中文报错拒绝。

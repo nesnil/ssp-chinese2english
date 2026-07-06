@@ -2810,13 +2810,16 @@ button.history-card {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
-  color: rgba(74, 52, 17, 0.68);
+  width: 34px;
+  height: 34px;
+  color: rgba(74, 52, 17, 0.82);
 }
 
 .wallet-card-logo svg {
+  width: 30px;
+  height: 30px;
   stroke-width: 2.25;
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.4));
 }
 
 .wallet-card-brand {
@@ -3286,6 +3289,42 @@ button.history-card {
   border-radius: 14px;
 }
 
+.model-history-row.error {
+  border: 1px solid #ffe1bb;
+}
+
+.model-history-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.model-history-title strong {
+  color: #243047;
+}
+
+.model-history-title small {
+  color: #7c8aa3;
+  font-weight: 800;
+}
+
+.model-history-preview {
+  margin: 8px 0 0;
+  max-height: 82px;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #3c5476;
+  background: #f8fbff;
+  border: 1px solid #e4edf8;
+  border-radius: 12px;
+  padding: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .admin-empty {
   text-align: center;
   color: #94a2bb;
@@ -3387,6 +3426,10 @@ button.history-card {
   width: min(680px, 100%);
 }
 
+.admin-modal.admin-history-modal {
+  width: min(1040px, 100%);
+}
+
 .admin-modal-head {
   display: flex;
   align-items: center;
@@ -3455,6 +3498,53 @@ button.history-card {
 .admin-form input:disabled {
   background: #f0f3f8;
   color: #93a1b8;
+}
+
+.model-history-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 14px;
+  color: #54637e;
+  font-weight: 800;
+}
+
+.model-history-detail-meta span:not(.admin-status) {
+  padding: 5px 9px;
+  border-radius: 10px;
+  background: #f1f6fd;
+}
+
+.model-history-json-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.model-history-json-grid section {
+  min-width: 0;
+}
+
+.model-history-json-grid h3 {
+  margin: 0 0 8px;
+  color: #243047;
+  font-size: 15px;
+}
+
+.model-history-json-grid pre {
+  margin: 0;
+  max-height: min(62vh, 620px);
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #243047;
+  background: #f8fbff;
+  border: 1px solid #e4edf8;
+  border-radius: 14px;
+  padding: 12px;
+  font-size: 12px;
+  line-height: 1.55;
 }
 
 .admin-form-grid {
@@ -4482,6 +4572,10 @@ button.history-card {
   }
 
   .admin-form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .model-history-json-grid {
     grid-template-columns: 1fr;
   }
 

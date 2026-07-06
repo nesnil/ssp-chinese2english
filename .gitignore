@@ -20,5 +20,8 @@ DEPLOY.md
 # 本地测试环境手册，含本机路径与线上子路径，不入库
 TEST_ENV.md
 
+# 个人版 Siri 快捷指令手册，含真实域名与 SIRI_API_TOKEN，不入库
+docs/siri-shortcut.local.md
+
 __pycache__/
 *.pyc

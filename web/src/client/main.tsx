@@ -2826,6 +2826,29 @@ type AdminTtsSettingsData = {
   updatedAt: string | null;
 };
 
+type ModelHistoryKind = "grading" | "tts" | "siri";
+type ModelHistoryStatus = "success" | "error";
+type AdminModelHistorySummary = {
+  id: number;
+  kind: ModelHistoryKind;
+  operation: string;
+  refType: string | null;
+  refId: string | null;
+  status: ModelHistoryStatus;
+  provider: string | null;
+  model: string | null;
+  errorMessage: string | null;
+  durationMs: number | null;
+  createdAt: string;
+  requestPreview: string;
+  responsePreview: string;
+};
+
+type AdminModelHistoryDetail = AdminModelHistorySummary & {
+  request: unknown;
+  response: unknown;
+};
+
 const ADMIN_PAGE_SIZE = 5;
 
 const ALPHABET = "abcdefghijklmnopqrstuvwxyz".split("");
@@ -2961,7 +2984,7 @@ function AdminLoginScreen({ onLogin, onCancel }: { onLogin: () => void; onCancel
 }
 
 function AdminApp({ onExit }: { onExit: () => void }) {
-  const [section, setSection] = useState<"questions" | "words" | "practice" | "model" | "wallet">("questions");
+  const [section, setSection] = useState<"questions" | "words" | "practice" | "model" | "history" | "wallet">("questions");
 
   return (
     <main className="app-shell admin-shell">
@@ -2999,6 +3022,10 @@ function AdminApp({ onExit }: { onExit: () => void }) {
           <Settings size={19} />
           模型
         </button>
+        <button className={section === "history" ? "active" : ""} onClick={() => setSection("history")}>
+          <History size={19} />
+          历史
+        </button>
         <button className={section === "wallet" ? "active" : ""} onClick={() => setSection("wallet")}>
           <Wallet size={19} />
           钱包
@@ -3012,6 +3039,8 @@ function AdminApp({ onExit }: { onExit: () => void }) {
         <AdminPracticeSettings />
       ) : section === "model" ? (
         <AdminModelSettings />
+      ) : section === "history" ? (
+        <AdminModelHistory />
       ) : (
         <AdminWallet />
       )}
@@ -4171,6 +4200,181 @@ function AdminModelSettings() {
       ) : null}
     </section>
   );
+}
+
+function AdminModelHistory() {
+  const [items, setItems] = useState<AdminModelHistorySummary[]>([]);
+  const [total, setTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const [kind, setKind] = useState("");
+  const [status, setStatus] = useState("");
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounced(search);
+  const [loading, setLoading] = useState(false);
+  const [detailLoadingId, setDetailLoadingId] = useState<number | null>(null);
+  const [detail, setDetail] = useState<AdminModelHistoryDetail | null>(null);
+  const [error, setError] = useState("");
+
+  async function load(nextOffset = offset) {
+    setLoading(true);
+    setError("");
+    try {
+      const params = new URLSearchParams({ limit: String(ADMIN_PAGE_SIZE), offset: String(nextOffset) });
+      if (kind) params.set("kind", kind);
+      if (status) params.set("status", status);
+      if (debouncedSearch) params.set("q", debouncedSearch);
+      const data = await api(`/api/admin/model-history?${params.toString()}`);
+      setItems(data.items);
+      setTotal(data.total);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "模型历史加载失败");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kind, status, debouncedSearch, offset]);
+
+  useEffect(() => {
+    setOffset(0);
+  }, [kind, status, debouncedSearch]);
+
+  async function openDetail(item: AdminModelHistorySummary) {
+    setDetailLoadingId(item.id);
+    setError("");
+    try {
+      const data = (await api(`/api/admin/model-history/${item.id}`)) as AdminModelHistoryDetail;
+      setDetail(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "模型历史详情加载失败");
+    } finally {
+      setDetailLoadingId(null);
+    }
+  }
+
+  return (
+    <section className="admin-panel model-history-panel">
+      <div className="admin-toolbar">
+        <div className="admin-search">
+          <Search size={18} />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索问题、单词、错误或响应内容" />
+        </div>
+        <select className="admin-filter" value={kind} onChange={(event) => setKind(event.target.value)}>
+          <option value="">全部类型</option>
+          <option value="grading">批改</option>
+          <option value="tts">TTS</option>
+          <option value="siri">Siri</option>
+        </select>
+        <select className="admin-filter" value={status} onChange={(event) => setStatus(event.target.value)}>
+          <option value="">全部状态</option>
+          <option value="success">成功</option>
+          <option value="error">失败</option>
+        </select>
+        <button className="soft-button small" onClick={() => load(0)} disabled={loading}>
+          {loading ? <Loader2 className="spin" size={18} /> : <RefreshCw size={18} />}
+          刷新
+        </button>
+      </div>
+
+      {error ? <div className="notice danger">{error}</div> : null}
+      <p className="admin-count">共 {total} 条模型历史{loading ? "（加载中…）" : ""}</p>
+
+      <div className="admin-list model-history-list">
+        {items.map((item) => (
+          <article key={item.id} className={`admin-row model-history-row ${item.status}`}>
+            <div className="admin-row-main">
+              <div className="model-history-title">
+                <span className={`admin-status ${item.status === "success" ? "ready" : "missing"}`}>
+                  {modelHistoryStatusLabel(item.status)}
+                </span>
+                <strong>{modelHistoryOperationLabel(item.operation)}</strong>
+                <small>{formatDate(item.createdAt)}</small>
+              </div>
+              <p className="admin-sub">
+                {modelHistoryKindLabel(item.kind)}
+                {item.refId ? ` · ${item.refId}` : ""}
+                {item.model ? ` · ${item.model}` : item.provider ? ` · ${item.provider}` : ""}
+                {item.durationMs !== null ? ` · ${item.durationMs}ms` : ""}
+              </p>
+              <pre className="model-history-preview">
+                {item.errorMessage || item.responsePreview || item.requestPreview || "没有响应内容"}
+              </pre>
+            </div>
+            <div className="admin-row-actions">
+              <button className="icon-button" title="查看详情" onClick={() => openDetail(item)} disabled={detailLoadingId === item.id}>
+                {detailLoadingId === item.id ? <Loader2 className="spin" size={18} /> : <History size={18} />}
+              </button>
+            </div>
+          </article>
+        ))}
+        {!loading && items.length === 0 ? <p className="admin-empty">没有匹配的模型历史。</p> : null}
+      </div>
+
+      <AdminPager total={total} offset={offset} onOffset={setOffset} />
+
+      {detail ? (
+        <AdminModal className="admin-history-modal" title={`模型历史 #${detail.id}`} onClose={() => setDetail(null)}>
+          <div className="model-history-detail-meta">
+            <span className={`admin-status ${detail.status === "success" ? "ready" : "missing"}`}>
+              {modelHistoryStatusLabel(detail.status)}
+            </span>
+            <span>{modelHistoryKindLabel(detail.kind)}</span>
+            <span>{modelHistoryOperationLabel(detail.operation)}</span>
+            {detail.refId ? <span>{detail.refId}</span> : null}
+            {detail.durationMs !== null ? <span>{detail.durationMs}ms</span> : null}
+          </div>
+          {detail.errorMessage ? <div className="notice danger">{detail.errorMessage}</div> : null}
+          <div className="model-history-json-grid">
+            <section>
+              <h3>请求</h3>
+              <pre>{formatJson(detail.request)}</pre>
+            </section>
+            <section>
+              <h3>响应</h3>
+              <pre>{formatJson(detail.response)}</pre>
+            </section>
+          </div>
+        </AdminModal>
+      ) : null}
+    </section>
+  );
+}
+
+function modelHistoryKindLabel(kind: string): string {
+  if (kind === "grading") return "批改";
+  if (kind === "tts") return "TTS";
+  if (kind === "siri") return "Siri";
+  return kind;
+}
+
+function modelHistoryStatusLabel(status: string): string {
+  return status === "success" ? "成功" : "失败";
+}
+
+function modelHistoryOperationLabel(operation: string): string {
+  const labels: Record<string, string> = {
+    "sentence-grade": "中译英批改",
+    "word-recall": "单词默写批改",
+    "word-example": "例句默写批改",
+    "model-test": "批改模型测试",
+    "word-audio-generate": "单词发音生成",
+    "tts-test": "TTS 发音测试",
+    "siri-wallet-command": "Siri 钱包解析"
+  };
+  return labels[operation] || operation;
+}
+
+function formatJson(value: unknown): string {
+  if (value === null || value === undefined) return "null";
+  if (typeof value === "string") return value;
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
 }
 
 type AdminWalletSettingsData = {

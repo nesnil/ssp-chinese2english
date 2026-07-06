@@ -1,4 +1,5 @@
-import type { AiModelConfig, GradeResult, Question, WordEntry } from "./types.js";
+import { errorMessage, logModelInteraction, modelHistoryRequest, trimHistoryText } from "./modelHistory.js";
+import type { AiModelConfig, GradeResult, ModelInteractionContext, Question, WordEntry } from "./types.js";
 
 type ChatMessage = {
   role: "system" | "user";
@@ -17,13 +18,26 @@ export function chatCompletionsUrl(baseUrl: string): string {
   return `${trimmed}/chat/completions`;
 }
 
-export async function gradeAnswer(config: GradeRuntimeConfig, question: Question, answer: string): Promise<GradeResult> {
+export async function gradeAnswer(
+  config: GradeRuntimeConfig,
+  question: Question,
+  answer: string,
+  history?: ModelInteractionContext
+): Promise<GradeResult> {
   if (!config.baseUrl || !config.apiKey || !config.model) {
+    logModelInteraction(history, {
+      status: "error",
+      provider: "openai-compatible",
+      model: config.model,
+      request: null,
+      errorMessage: "AI 模型配置不完整。"
+    });
     throw new AiConfigError("AI 模型配置不完整，请管理员先在后台配置 Base URL、API Key 和模型名称。");
   }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
+  const startedAt = Date.now();
 
   const messages: ChatMessage[] = [
     {
@@ -51,24 +65,30 @@ export async function gradeAnswer(config: GradeRuntimeConfig, question: Question
       })
     }
   ];
+  const requestBody = {
+    model: config.model,
+    messages,
+    temperature: 0.35,
+    response_format: { type: "json_object" }
+  };
+  let status: "success" | "error" = "success";
+  let responseHistory: unknown;
+  let failure: string | null = null;
 
   try {
-    const response = await fetch(chatCompletionsUrl(config.baseUrl), {
+    const url = chatCompletionsUrl(config.baseUrl);
+    const response = await fetch(url, {
       method: "POST",
       signal: controller.signal,
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${config.apiKey}`
       },
-      body: JSON.stringify({
-        model: config.model,
-        messages,
-        temperature: 0.35,
-        response_format: { type: "json_object" }
-      })
+      body: JSON.stringify(requestBody)
     });
 
     const bodyText = await response.text();
+    responseHistory = { httpStatus: response.status, bodyText: trimHistoryText(bodyText) };
     if (!response.ok) {
       throw new Error(`DeepSeek HTTP ${response.status}: ${bodyText.slice(0, 400)}`);
     }
@@ -79,50 +99,78 @@ export async function gradeAnswer(config: GradeRuntimeConfig, question: Question
       throw new Error("DeepSeek response did not include message content.");
     }
 
+    responseHistory = { httpStatus: response.status, bodyText: trimHistoryText(bodyText), content: trimHistoryText(content) };
     return normalizeGrade(JSON.parse(content), question.referenceAnswer, content, config.reviewScoreThreshold);
   } catch (error) {
+    status = "error";
     if (error instanceof SyntaxError) {
+      failure = "AI 返回内容不是有效 JSON。";
       return fallbackGrade(question.referenceAnswer, "AI 返回内容不是有效 JSON。");
     }
     if (error instanceof Error && error.name === "AbortError") {
+      failure = "AI 批改超时，请稍后重试。";
       return fallbackGrade(question.referenceAnswer, "AI 批改超时，请稍后重试。");
     }
-    return fallbackGrade(question.referenceAnswer, error instanceof Error ? error.message : "AI 批改失败。");
+    failure = errorMessage(error, "AI 批改失败。");
+    return fallbackGrade(question.referenceAnswer, failure);
   } finally {
     clearTimeout(timeout);
+    logModelInteraction(history, {
+      status,
+      provider: "openai-compatible",
+      model: config.model,
+      request: modelHistoryRequest(chatCompletionsUrl(config.baseUrl), requestBody),
+      response: responseHistory,
+      errorMessage: failure,
+      durationMs: Date.now() - startedAt
+    });
   }
 }
 
-export async function testAiModelConnection(config: AiModelConfig): Promise<void> {
+export async function testAiModelConnection(config: AiModelConfig, history?: ModelInteractionContext): Promise<void> {
   if (!config.baseUrl || !config.apiKey || !config.model) {
+    logModelInteraction(history, {
+      status: "error",
+      provider: "openai-compatible",
+      model: config.model,
+      request: null,
+      errorMessage: "AI 模型配置不完整。"
+    });
     throw new AiConfigError("AI 模型配置不完整，请填写 Base URL、API Key 和模型名称。");
   }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
+  const startedAt = Date.now();
+  const requestBody = {
+    model: config.model,
+    messages: [
+      {
+        role: "user",
+        content: "Reply with the single word OK."
+      }
+    ],
+    temperature: 0,
+    max_tokens: 256
+  };
+  let status: "success" | "error" = "success";
+  let responseHistory: unknown;
+  let failure: string | null = null;
 
   try {
-    const response = await fetch(chatCompletionsUrl(config.baseUrl), {
+    const url = chatCompletionsUrl(config.baseUrl);
+    const response = await fetch(url, {
       method: "POST",
       signal: controller.signal,
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${config.apiKey}`
       },
-      body: JSON.stringify({
-        model: config.model,
-        messages: [
-          {
-            role: "user",
-            content: "Reply with the single word OK."
-          }
-        ],
-        temperature: 0,
-        max_tokens: 256
-      })
+      body: JSON.stringify(requestBody)
     });
 
     const bodyText = await response.text();
+    responseHistory = { httpStatus: response.status, bodyText: trimHistoryText(bodyText) };
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${bodyText.slice(0, 240)}`);
     }
@@ -143,20 +191,33 @@ export async function testAiModelConnection(config: AiModelConfig): Promise<void
       throw new Error("模型响应缺少 choices 字段，可能不是 OpenAI 兼容接口。");
     }
   } catch (error) {
+    status = "error";
     if (error instanceof AiConfigError) throw error;
     if (error instanceof Error && error.name === "AbortError") {
+      failure = "连接测试超时，请检查 Base URL、模型名称或网络状态。";
       throw new Error("连接测试超时，请检查 Base URL、模型名称或网络状态。");
     }
+    failure = errorMessage(error, "模型连接测试失败。");
     throw error;
   } finally {
     clearTimeout(timeout);
+    logModelInteraction(history, {
+      status,
+      provider: "openai-compatible",
+      model: config.model,
+      request: modelHistoryRequest(chatCompletionsUrl(config.baseUrl), requestBody),
+      response: responseHistory,
+      errorMessage: failure,
+      durationMs: Date.now() - startedAt
+    });
   }
 }
 
 export async function gradeWordRecall(
   config: GradeRuntimeConfig,
   word: WordEntry,
-  input: { wordAnswer: string; meaningAnswers: Record<string, string> }
+  input: { wordAnswer: string; meaningAnswers: Record<string, string> },
+  history?: ModelInteractionContext
 ): Promise<GradeResult> {
   const referenceAnswer = wordReferenceAnswer(word);
   return gradeWithAi(
@@ -181,11 +242,17 @@ export async function gradeWordRecall(
     ],
     referenceAnswer,
     config.reviewScoreThreshold,
-    "重点比较单词拼写、词性和中文核心意思。"
+    "重点比较单词拼写、词性和中文核心意思。",
+    history
   );
 }
 
-export async function gradeExampleRecall(config: GradeRuntimeConfig, word: WordEntry, answers: string[]): Promise<GradeResult> {
+export async function gradeExampleRecall(
+  config: GradeRuntimeConfig,
+  word: WordEntry,
+  answers: string[],
+  history?: ModelInteractionContext
+): Promise<GradeResult> {
   const examples = word.examples.length ? word.examples : [{ english: "", chinese: "" }];
   // 把每句的中文、参考英文、学生答案配对，让 AI 一次综合批改、给一个总分。
   const items = examples.map((example, index) => ({
@@ -216,7 +283,8 @@ export async function gradeExampleRecall(config: GradeRuntimeConfig, word: WordE
     ],
     referenceAnswer,
     config.reviewScoreThreshold,
-    "重点比较每句的主干、关键词、语法和完整度。"
+    "重点比较每句的主干、关键词、语法和完整度。",
+    history
   );
 }
 
@@ -225,32 +293,47 @@ async function gradeWithAi(
   messages: ChatMessage[],
   referenceAnswer: string,
   threshold: number,
-  fallbackSuggestion: string
+  fallbackSuggestion: string,
+  history?: ModelInteractionContext
 ): Promise<GradeResult> {
   if (!config.baseUrl || !config.apiKey || !config.model) {
+    logModelInteraction(history, {
+      status: "error",
+      provider: "openai-compatible",
+      model: config.model,
+      request: null,
+      errorMessage: "AI 模型配置不完整。"
+    });
     throw new AiConfigError("AI 模型配置不完整，请管理员先在后台配置 Base URL、API Key 和模型名称。");
   }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
+  const startedAt = Date.now();
+  const requestBody = {
+    model: config.model,
+    messages,
+    temperature: 0.25,
+    response_format: { type: "json_object" }
+  };
+  let status: "success" | "error" = "success";
+  let responseHistory: unknown;
+  let failure: string | null = null;
 
   try {
-    const response = await fetch(chatCompletionsUrl(config.baseUrl), {
+    const url = chatCompletionsUrl(config.baseUrl);
+    const response = await fetch(url, {
       method: "POST",
       signal: controller.signal,
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${config.apiKey}`
       },
-      body: JSON.stringify({
-        model: config.model,
-        messages,
-        temperature: 0.25,
-        response_format: { type: "json_object" }
-      })
+      body: JSON.stringify(requestBody)
     });
 
     const bodyText = await response.text();
+    responseHistory = { httpStatus: response.status, bodyText: trimHistoryText(bodyText) };
     if (!response.ok) {
       throw new Error(`DeepSeek HTTP ${response.status}: ${bodyText.slice(0, 400)}`);
     }
@@ -261,17 +344,31 @@ async function gradeWithAi(
       throw new Error("DeepSeek response did not include message content.");
     }
 
+    responseHistory = { httpStatus: response.status, bodyText: trimHistoryText(bodyText), content: trimHistoryText(content) };
     return normalizeGrade(JSON.parse(content), referenceAnswer, content, threshold);
   } catch (error) {
+    status = "error";
     if (error instanceof SyntaxError) {
+      failure = "AI 返回内容不是有效 JSON。";
       return fallbackGrade(referenceAnswer, "AI 返回内容不是有效 JSON。", fallbackSuggestion);
     }
     if (error instanceof Error && error.name === "AbortError") {
+      failure = "AI 批改超时，请稍后重试。";
       return fallbackGrade(referenceAnswer, "AI 批改超时，请稍后重试。", fallbackSuggestion);
     }
-    return fallbackGrade(referenceAnswer, error instanceof Error ? error.message : "AI 批改失败。", fallbackSuggestion);
+    failure = errorMessage(error, "AI 批改失败。");
+    return fallbackGrade(referenceAnswer, failure, fallbackSuggestion);
   } finally {
     clearTimeout(timeout);
+    logModelInteraction(history, {
+      status,
+      provider: "openai-compatible",
+      model: config.model,
+      request: modelHistoryRequest(chatCompletionsUrl(config.baseUrl), requestBody),
+      response: responseHistory,
+      errorMessage: failure,
+      durationMs: Date.now() - startedAt
+    });
   }
 }
 
