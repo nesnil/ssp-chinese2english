@@ -315,31 +315,37 @@ export function registerAdminRoutes(
   });
 
   app.get("/api/admin/words", requireAdmin, (req, res) => {
-    const tag = String(req.query.tag || "").trim();
-    const q = String(req.query.q || "").trim();
-    const letter = String(req.query.letter || "").trim().toLowerCase();
     const { limit, offset } = pageParams(req, WORDS_PAGE_MAX);
-
-    const conditions: string[] = [];
-    const params: Array<string | number> = [];
-    if (tag && tag !== "all") {
-      conditions.push("tags_json LIKE ?");
-      params.push(`%${JSON.stringify(tag).slice(1, -1)}%`);
-    }
-    if (letter && /^[a-z]$/.test(letter)) {
-      conditions.push("LOWER(name) LIKE ?");
-      params.push(`${letter}%`);
-    }
-    if (q) {
-      conditions.push("(name LIKE ? OR id LIKE ? OR definitions_json LIKE ?)");
-      const like = `%${q}%`;
-      params.push(like, like, like);
-    }
-    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    const { where, params } = adminWordListFilters(req);
 
     const total = database.queryCount(`SELECT COUNT(*) AS n FROM words ${where}`, params);
     const rows = database.queryWordPage(where, params, limit, offset);
     res.json({ total, limit, offset, items: rows.map(adminWord) });
+  });
+
+  app.get("/api/admin/words/locate", requireAdmin, (req, res) => {
+    const term = String(req.query.word || "").trim();
+    if (!term) {
+      res.status(400).json({ error: "请先输入要定位的单词。" });
+      return;
+    }
+    const { limit } = pageParams(req, WORDS_PAGE_MAX);
+    const { where, params } = adminWordListFilters(req);
+    const located = database.locateWordRow(where, params, term);
+    if (!located) {
+      res.status(404).json({ error: "当前列表里没有找到这个单词。" });
+      return;
+    }
+    const total = database.queryCount(`SELECT COUNT(*) AS n FROM words ${where}`, params);
+    const page = Math.floor(located.index / limit) + 1;
+    res.json({
+      total,
+      limit,
+      offset: (page - 1) * limit,
+      page,
+      index: located.index,
+      word: adminWord(located.row)
+    });
   });
 
   app.get("/api/admin/words/:id", requireAdmin, (req, res) => {
@@ -704,6 +710,28 @@ function pageParams(req: Request, max: number): { limit: number; offset: number 
   const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(Math.floor(rawLimit), max) : 50;
   const offset = Number.isFinite(rawOffset) && rawOffset > 0 ? Math.floor(rawOffset) : 0;
   return { limit, offset };
+}
+
+function adminWordListFilters(req: Request): { where: string; params: Array<string | number> } {
+  const tag = String(req.query.tag || "").trim();
+  const q = String(req.query.q || "").trim();
+  const letter = String(req.query.letter || "").trim().toLowerCase();
+  const conditions: string[] = [];
+  const params: Array<string | number> = [];
+  if (tag && tag !== "all") {
+    conditions.push("tags_json LIKE ?");
+    params.push(`%${JSON.stringify(tag).slice(1, -1)}%`);
+  }
+  if (letter && /^[a-z]$/.test(letter)) {
+    conditions.push("LOWER(name) LIKE ?");
+    params.push(`${letter}%`);
+  }
+  if (q) {
+    conditions.push("(name LIKE ? OR id LIKE ? OR definitions_json LIKE ?)");
+    const like = `%${q}%`;
+    params.push(like, like, like);
+  }
+  return { where: conditions.length ? `WHERE ${conditions.join(" AND ")}` : "", params };
 }
 
 function optionalNumber(value: unknown): number | null {

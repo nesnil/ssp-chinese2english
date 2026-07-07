@@ -936,6 +936,29 @@ export class AppDatabase {
       .all(...params, limit, offset) as WordRow[];
   }
 
+  locateWordRow(where: string, params: Array<string | number>, term: string): { row: WordRow; index: number } | null {
+    const trimmed = term.trim();
+    if (!trimmed) return null;
+    const row = this.db
+      .prepare(
+        `WITH ranked AS (
+           SELECT
+             id, source_id, name, sort_index, definitions_json, examples_json, similar_json, tags_json, audio_path,
+             ROW_NUMBER() OVER (ORDER BY name COLLATE NOCASE, name, sort_index) AS rn
+           FROM words ${where}
+         )
+         SELECT id, source_id, name, sort_index, definitions_json, examples_json, similar_json, tags_json, audio_path, rn
+         FROM ranked
+         WHERE LOWER(name) = LOWER(?) OR LOWER(id) = LOWER(?)
+         ORDER BY rn
+         LIMIT 1`
+      )
+      .get(...params, trimmed, trimmed) as (WordRow & { rn: number }) | undefined;
+    if (!row) return null;
+    const { rn: _rn, ...wordRow } = row;
+    return { row: wordRow, index: row.rn - 1 };
+  }
+
   allWordRows(): WordRow[] {
     return this.db
       .prepare(

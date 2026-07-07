@@ -3440,10 +3440,13 @@ function AdminWords() {
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [search, setSearch] = useState("");
+  const [locateTerm, setLocateTerm] = useState("");
+  const [locateNotice, setLocateNotice] = useState("");
   const [tagFilter, setTagFilter] = useState("");
   const [letterFilter, setLetterFilter] = useState("");
   const debouncedSearch = useDebounced(search);
   const [loading, setLoading] = useState(false);
+  const [locating, setLocating] = useState(false);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState<AdminWord | "new" | null>(null);
   const [deleting, setDeleting] = useState<AdminWord | null>(null);
@@ -3477,7 +3480,37 @@ function AdminWords() {
 
   useEffect(() => {
     setOffset(0);
+    setLocateNotice("");
   }, [debouncedSearch, tagFilter, letterFilter]);
+
+  async function locateWordPage(event: React.FormEvent) {
+    event.preventDefault();
+    const term = locateTerm.trim();
+    if (!term) {
+      setLocateNotice("请先输入要定位的单词。");
+      return;
+    }
+    setLocating(true);
+    setError("");
+    setLocateNotice("");
+    try {
+      const params = new URLSearchParams({ word: term, limit: String(ADMIN_PAGE_SIZE) });
+      if (debouncedSearch) params.set("q", debouncedSearch);
+      if (tagFilter) params.set("tag", tagFilter);
+      if (letterFilter) params.set("letter", letterFilter);
+      const data = await api(`/api/admin/words/locate?${params.toString()}`);
+      const nextOffset = Number(data.offset) || 0;
+      const page = Number(data.page) || Math.floor(nextOffset / ADMIN_PAGE_SIZE) + 1;
+      const index = Number(data.index);
+      const position = Number.isFinite(index) ? `，第 ${index + 1} 条` : "";
+      setOffset(nextOffset);
+      setLocateNotice(`${data.word?.name || term} 在第 ${page} 页${position}。`);
+    } catch (err) {
+      setLocateNotice(err instanceof Error ? err.message : "定位失败");
+    } finally {
+      setLocating(false);
+    }
+  }
 
   async function generateAudio(item: AdminWord) {
     setGeneratingAudioId(item.id);
@@ -3529,6 +3562,19 @@ function AdminWords() {
           <Search size={18} />
           <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索单词或释义" />
         </div>
+        <form className="admin-locate" onSubmit={locateWordPage}>
+          <Search size={18} />
+          <input
+            value={locateTerm}
+            onChange={(event) => setLocateTerm(event.target.value)}
+            placeholder="定位单词"
+            aria-label="定位单词"
+          />
+          <button type="submit" className="admin-locate-button" disabled={locating}>
+            {locating ? <Loader2 className="spin" size={16} /> : <ArrowRight size={16} />}
+            定位
+          </button>
+        </form>
         <select className="admin-filter" value={tagFilter} onChange={(event) => setTagFilter(event.target.value)}>
           <option value="">全部分类</option>
           {wordTags.map((tag) => (
@@ -3565,6 +3611,7 @@ function AdminWords() {
       <p className="admin-count">
         {letterFilter ? `首字母 ${letterFilter.toUpperCase()} · ` : ""}共 {total} 个单词{loading ? "（加载中…）" : ""}
       </p>
+      {locateNotice ? <p className="admin-locate-note">{locateNotice}</p> : null}
 
       <div className="admin-list">
         {items.map((item) => (
@@ -3664,7 +3711,7 @@ function AdminWords() {
         {!loading && items.length === 0 ? <p className="admin-empty">没有匹配的单词。</p> : null}
       </div>
 
-      <AdminPager total={total} offset={offset} onOffset={setOffset} />
+      <AdminPager total={total} offset={offset} onOffset={setOffset} showPageJump />
 
       {editing ? (
         <AdminWordForm
@@ -4896,13 +4943,39 @@ function AdminModal({
   );
 }
 
-function AdminPager({ total, offset, onOffset }: { total: number; offset: number; onOffset: (value: number) => void }) {
-  if (total === 0) return null;
-  const pageCount = Math.ceil(total / ADMIN_PAGE_SIZE);
-  const page = Math.floor(offset / ADMIN_PAGE_SIZE) + 1;
+function AdminPager({
+  total,
+  offset,
+  onOffset,
+  showPageJump = false
+}: {
+  total: number;
+  offset: number;
+  onOffset: (value: number) => void;
+  showPageJump?: boolean;
+}) {
+  const pageCount = Math.max(1, Math.ceil(total / ADMIN_PAGE_SIZE));
+  const page = Math.min(pageCount, Math.floor(offset / ADMIN_PAGE_SIZE) + 1);
+  const [pageInput, setPageInput] = useState(String(page));
   const goToPage = (p: number) => onOffset((Math.min(Math.max(p, 1), pageCount) - 1) * ADMIN_PAGE_SIZE);
   const from = offset + 1;
   const to = Math.min(offset + ADMIN_PAGE_SIZE, total);
+
+  useEffect(() => {
+    setPageInput(String(page));
+  }, [page]);
+
+  function submitPageJump(event: React.FormEvent) {
+    event.preventDefault();
+    const nextPage = Number(pageInput);
+    if (!Number.isFinite(nextPage)) {
+      setPageInput(String(page));
+      return;
+    }
+    goToPage(Math.trunc(nextPage));
+  }
+
+  if (total === 0) return null;
 
   return (
     <div className="admin-pager">
@@ -4939,6 +5012,24 @@ function AdminPager({ total, offset, onOffset }: { total: number; offset: number
             <ChevronsRight size={16} />
           </button>
         </div>
+      ) : null}
+      {showPageJump && pageCount > 1 ? (
+        <form className="admin-page-jump" onSubmit={submitPageJump}>
+          <span>跳到</span>
+          <input
+            type="number"
+            min={1}
+            max={pageCount}
+            step={1}
+            value={pageInput}
+            onChange={(event) => setPageInput(event.target.value)}
+            aria-label="跳转页码"
+          />
+          <span>页</span>
+          <button type="submit" className="admin-page-jump-button">
+            <ArrowRight size={15} />
+          </button>
+        </form>
       ) : null}
     </div>
   );

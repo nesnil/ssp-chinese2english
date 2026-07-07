@@ -2642,10 +2642,59 @@ button.history-card {
   font-size: 15px;
 }
 
+.admin-locate {
+  min-width: 260px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 0 14px;
+  background: #ffffff;
+  border-radius: 18px;
+  box-shadow: 0 6px 0 #d8e2ef;
+  color: #6b7c98;
+}
+
+.admin-locate input {
+  width: 120px;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  min-height: 46px;
+  background: transparent;
+  font-size: 15px;
+}
+
+.admin-locate-button {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 12px;
+  background: #e8f1ff;
+  color: #1f6fd6;
+  font-size: 13px;
+  font-weight: 900;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.admin-locate-button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
 .admin-count {
   margin: 0;
   color: #6b7c98;
   font-size: 14px;
+}
+
+.admin-locate-note {
+  margin: -8px 0 0;
+  color: #3c5476;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .admin-settings-head {
@@ -3350,6 +3399,44 @@ button.history-card {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+.admin-page-jump {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #7c8aa3;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-page-jump input {
+  width: 64px;
+  height: 34px;
+  border: 0;
+  border-radius: 11px;
+  background: #ffffff;
+  box-shadow: 0 3px 0 #d8e2ef;
+  color: #3c5476;
+  font-size: 14px;
+  font-weight: 900;
+  text-align: center;
+  outline: none;
+}
+
+.admin-page-jump-button {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 11px;
+  background: #e8f1ff;
+  color: #1f6fd6;
+  box-shadow: 0 3px 0 #cfe0f5;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .admin-page-step,

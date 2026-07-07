@@ -29,6 +29,18 @@ const seedWords = [
   { id: "w_apple", name: "apple", definitions: [{ phonetic: "ˈæpl", partOfSpeech: "n.", meaning: "苹果" }], examples: [{ english: "I like apples.", chinese: "我喜欢苹果。" }], similar: [], tags: ["all", "shanghai-zhongkao"], audioPath: "apple.mp3" }
 ];
 
+function wordFixture(name, tags = ["all", "shanghai-zhongkao"]) {
+  return {
+    id: `w_${name}`,
+    name,
+    definitions: [{ phonetic: "", partOfSpeech: "n.", meaning: `${name} meaning` }],
+    examples: [{ english: `${name} example.`, chinese: `${name} 例句。` }],
+    similar: [],
+    tags,
+    audioPath: null
+  };
+}
+
 test("seeding is idempotent — second seed does not duplicate", () => {
   const db = makeDatabase();
   assert.equal(db.seedQuestionsIfEmpty(seedQuestions), true);
@@ -118,6 +130,42 @@ test("word list ignores insertion order and sorts alphabetically", () => {
     db.queryWordPage("", [], 10, 0).map((row) => row.name),
     ["able", "apple", "zebra"]
   );
+});
+
+test("word locator returns the alphabetical row index for page jumps", () => {
+  const db = makeDatabase();
+  db.seedWordsIfEmpty([
+    wordFixture("delta"),
+    wordFixture("able"),
+    wordFixture("carrot"),
+    wordFixture("banana"),
+    wordFixture("elder")
+  ]);
+
+  assert.equal(typeof db.locateWordRow, "function");
+  const located = db.locateWordRow("", [], "carrot");
+
+  assert.equal(located?.index, 2);
+  assert.equal(located?.row.name, "carrot");
+});
+
+test("word locator respects the active admin word filters", () => {
+  const db = makeDatabase();
+  db.seedWordsIfEmpty([
+    wordFixture("able", ["all", "junior"]),
+    wordFixture("banana", ["all", "senior-candidate"]),
+    wordFixture("carrot", ["all", "junior"]),
+    wordFixture("delta", ["all", "senior-candidate"])
+  ]);
+
+  assert.equal(typeof db.locateWordRow, "function");
+  const seniorTag = `%${JSON.stringify("senior-candidate").slice(1, -1)}%`;
+  const found = db.locateWordRow("WHERE tags_json LIKE ?", [seniorTag], "delta");
+  const filteredOut = db.locateWordRow("WHERE tags_json LIKE ?", [seniorTag], "carrot");
+
+  assert.equal(found?.index, 1);
+  assert.equal(found?.row.name, "delta");
+  assert.equal(filteredOut, null);
 });
 
 test("delete warnings count referencing submissions, but submissions are preserved", () => {
