@@ -4,6 +4,7 @@ import {
   ArrowRight,
   BadgeCheck,
   BookOpen,
+  Bot,
   CalendarDays,
   Check,
   CheckCircle2,
@@ -2984,7 +2985,7 @@ function AdminLoginScreen({ onLogin, onCancel }: { onLogin: () => void; onCancel
 }
 
 function AdminApp({ onExit }: { onExit: () => void }) {
-  const [section, setSection] = useState<"questions" | "words" | "practice" | "model" | "history" | "wallet">("questions");
+  const [section, setSection] = useState<"questions" | "words" | "practice" | "model" | "wallet">("questions");
 
   return (
     <main className="app-shell admin-shell">
@@ -3019,12 +3020,8 @@ function AdminApp({ onExit }: { onExit: () => void }) {
           练习
         </button>
         <button className={section === "model" ? "active" : ""} onClick={() => setSection("model")}>
-          <Settings size={19} />
+          <Bot size={19} />
           模型
-        </button>
-        <button className={section === "history" ? "active" : ""} onClick={() => setSection("history")}>
-          <History size={19} />
-          历史
         </button>
         <button className={section === "wallet" ? "active" : ""} onClick={() => setSection("wallet")}>
           <Wallet size={19} />
@@ -3038,9 +3035,7 @@ function AdminApp({ onExit }: { onExit: () => void }) {
       ) : section === "practice" ? (
         <AdminPracticeSettings />
       ) : section === "model" ? (
-        <AdminModelSettings />
-      ) : section === "history" ? (
-        <AdminModelHistory />
+        <AdminModelSection />
       ) : (
         <AdminWallet />
       )}
@@ -3739,6 +3734,26 @@ function AdminWords() {
   );
 }
 
+function AdminModelSection() {
+  const [tab, setTab] = useState<"settings" | "history">("settings");
+
+  return (
+    <div className="admin-panel">
+      <nav className="admin-section-tabs" aria-label="模型管理">
+        <button className={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}>
+          <Sparkles size={17} />
+          模型配置
+        </button>
+        <button className={tab === "history" ? "active" : ""} onClick={() => setTab("history")}>
+          <History size={17} />
+          模型对话历史
+        </button>
+      </nav>
+      {tab === "settings" ? <AdminModelSettings /> : <AdminModelHistory />}
+    </div>
+  );
+}
+
 function AdminModelSettings() {
   const [settings, setSettings] = useState<AdminModelSettingsData | null>(null);
   const [ttsSettings, setTtsSettings] = useState<AdminTtsSettingsData | null>(null);
@@ -3941,18 +3956,6 @@ function AdminModelSettings() {
 
   return (
     <section className="admin-panel">
-      <div className="admin-settings-head">
-        <div>
-          <span className={`admin-status ${settings?.configured && ttsSettings?.configured ? "ready" : "missing"}`}>
-            {settings?.configured && ttsSettings?.configured ? "已配置" : "待完善"}
-          </span>
-          <h2>模型参数</h2>
-        </div>
-        {settings?.updatedAt || ttsSettings?.updatedAt ? (
-          <small>最近更新 {formatDate(ttsSettings?.updatedAt || settings?.updatedAt || "")}</small>
-        ) : null}
-      </div>
-
       {loading ? <LoadingScreen compact /> : null}
       {error ? <div className="notice danger">{error}</div> : null}
 
