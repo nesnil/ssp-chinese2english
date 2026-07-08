@@ -3735,7 +3735,7 @@ function AdminWords() {
 }
 
 function AdminModelSection() {
-  const [tab, setTab] = useState<"settings" | "history">("settings");
+  const [tab, setTab] = useState<"settings" | "history" | "siri">("settings");
 
   return (
     <div className="admin-panel">
@@ -3748,8 +3748,18 @@ function AdminModelSection() {
           <History size={17} />
           模型对话历史
         </button>
+        <button className={tab === "siri" ? "active" : ""} onClick={() => setTab("siri")}>
+          <Volume2 size={17} />
+          Siri 对话历史
+        </button>
       </nav>
-      {tab === "settings" ? <AdminModelSettings /> : <AdminModelHistory />}
+      {tab === "settings" ? (
+        <AdminModelSettings />
+      ) : tab === "history" ? (
+        <AdminModelHistory key="model-history" />
+      ) : (
+        <AdminSiriHistory key="siri-history" />
+      )}
     </div>
   );
 }
@@ -4310,7 +4320,11 @@ function AdminModelHistory() {
       <div className="admin-toolbar">
         <div className="admin-search">
           <Search size={18} />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索问题、单词、错误或响应内容" />
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="搜索问题、单词、错误或响应内容"
+          />
         </div>
         <select className="admin-filter" value={kind} onChange={(event) => setKind(event.target.value)}>
           <option value="">全部类型</option>
@@ -4330,7 +4344,9 @@ function AdminModelHistory() {
       </div>
 
       {error ? <div className="notice danger">{error}</div> : null}
-      <p className="admin-count">共 {total} 条模型历史{loading ? "（加载中…）" : ""}</p>
+      <p className="admin-count">
+        共 {total} 条模型历史{loading ? "（加载中…）" : ""}
+      </p>
 
       <div className="admin-list model-history-list">
         {items.map((item) => (
@@ -4393,6 +4409,110 @@ function AdminModelHistory() {
   );
 }
 
+function AdminSiriHistory() {
+  const [items, setItems] = useState<AdminModelHistorySummary[]>([]);
+  const [detailById, setDetailById] = useState<Record<number, AdminModelHistoryDetail>>({});
+  const [total, setTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const [status, setStatus] = useState("");
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounced(search);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function load(nextOffset = offset) {
+    setLoading(true);
+    setError("");
+    try {
+      const params = new URLSearchParams({
+        kind: "siri",
+        limit: String(ADMIN_PAGE_SIZE),
+        offset: String(nextOffset)
+      });
+      if (status) params.set("status", status);
+      if (debouncedSearch) params.set("q", debouncedSearch);
+      const data = await api(`/api/admin/model-history?${params.toString()}`);
+      const nextItems = data.items as AdminModelHistorySummary[];
+      setItems(nextItems);
+      setTotal(data.total);
+      const details = await Promise.all(
+        nextItems.map((item) =>
+          api(`/api/admin/model-history/${item.id}`)
+            .then((detail) => [item.id, detail as AdminModelHistoryDetail] as const)
+            .catch(() => null)
+        )
+      );
+      setDetailById(
+        Object.fromEntries(details.filter((entry): entry is readonly [number, AdminModelHistoryDetail] => entry !== null))
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Siri 对话历史加载失败");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, debouncedSearch, offset]);
+
+  useEffect(() => {
+    setOffset(0);
+  }, [status, debouncedSearch]);
+
+  return (
+    <section className="admin-panel model-history-panel siri-history-panel">
+      <div className="admin-toolbar">
+        <div className="admin-search">
+          <Search size={18} />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索 Siri 指令、错误或响应内容" />
+        </div>
+        <select className="admin-filter" value={status} onChange={(event) => setStatus(event.target.value)}>
+          <option value="">全部状态</option>
+          <option value="success">成功</option>
+          <option value="error">失败</option>
+        </select>
+        <button className="soft-button small" onClick={() => load(0)} disabled={loading}>
+          {loading ? <Loader2 className="spin" size={18} /> : <RefreshCw size={18} />}
+          刷新
+        </button>
+      </div>
+
+      {error ? <div className="notice danger">{error}</div> : null}
+      <p className="admin-count">
+        共 {total} 条 Siri 对话历史{loading ? "（加载中…）" : ""}
+      </p>
+
+      <div className="siri-chat-window" aria-label="Siri 对话历史">
+        {items.map((item) => {
+          const displayItem = detailById[item.id] || item;
+          return (
+            <React.Fragment key={item.id}>
+              <div className="siri-chat-time">
+                <span>{formatDate(item.createdAt)}</span>
+                <span className={`siri-chat-state ${item.status}`}>{modelHistoryStatusLabel(item.status)}</span>
+                {item.durationMs !== null ? <span>{item.durationMs}ms</span> : null}
+              </div>
+              <div className="siri-chat-line user">
+                <span className="siri-chat-speaker">家长</span>
+                <p>{modelHistoryInputText(displayItem)}</p>
+              </div>
+              <div className={`siri-chat-line assistant ${item.status === "error" ? "error" : ""}`}>
+                <span className="siri-chat-speaker">{item.status === "error" ? "错误" : "Siri"}</span>
+                <p>{modelHistoryOutputText(displayItem)}</p>
+              </div>
+            </React.Fragment>
+          );
+        })}
+        {!loading && items.length === 0 ? <p className="admin-empty">没有匹配的 Siri 对话历史。</p> : null}
+      </div>
+
+      <AdminPager total={total} offset={offset} onOffset={setOffset} />
+    </section>
+  );
+}
+
 function modelHistoryKindLabel(kind: string): string {
   if (kind === "grading") return "批改";
   if (kind === "tts") return "TTS";
@@ -4415,6 +4535,108 @@ function modelHistoryOperationLabel(operation: string): string {
     "siri-wallet-command": "Siri 钱包解析"
   };
   return labels[operation] || operation;
+}
+
+function modelHistoryInputText(item: AdminModelHistorySummary | AdminModelHistoryDetail): string {
+  const parsed = "request" in item ? item.request : safeJsonParse(item.requestPreview);
+  const body = parsed && typeof parsed === "object" && "body" in parsed ? (parsed as { body?: unknown }).body : parsed;
+  const messageText = latestUserMessage(body);
+  if (messageText) return summarizeMessageContent(messageText);
+  const text = nestedString(body, ["req_params", "text"]);
+  if (text) return text;
+  const previewContent = extractPreviewString(item.requestPreview, ["content", "text"]);
+  if (previewContent) return summarizeMessageContent(previewContent);
+  return item.requestPreview || "没有请求内容";
+}
+
+function modelHistoryOutputText(item: AdminModelHistorySummary | AdminModelHistoryDetail): string {
+  if (item.errorMessage) return item.errorMessage;
+  const parsed = "response" in item ? item.response : safeJsonParse(item.responsePreview);
+  if (parsed && typeof parsed === "object") {
+    const content = typeof (parsed as { content?: unknown }).content === "string" ? (parsed as { content: string }).content : "";
+    const contentJson = safeJsonParse(content);
+    if (contentJson && typeof contentJson === "object") return summarizeResponseObject(contentJson);
+    const intent = (parsed as { intent?: unknown }).intent;
+    if (intent && typeof intent === "object") return summarizeResponseObject(intent);
+    const byteLength = (parsed as { byteLength?: unknown }).byteLength;
+    if (Number.isFinite(Number(byteLength))) return `音频已生成，大小 ${byteLength} bytes。`;
+  }
+  return item.responsePreview || "没有响应内容";
+}
+
+function latestUserMessage(value: unknown): string {
+  const messages = value && typeof value === "object" && "messages" in value ? (value as { messages?: unknown }).messages : null;
+  if (!Array.isArray(messages)) return "";
+  const userMessages = messages.filter((entry) => entry && typeof entry === "object" && (entry as { role?: unknown }).role === "user");
+  const latest = userMessages[userMessages.length - 1] as { content?: unknown } | undefined;
+  return typeof latest?.content === "string" ? latest.content : "";
+}
+
+function summarizeMessageContent(text: string): string {
+  const parsed = safeJsonParse(text);
+  if (parsed && typeof parsed === "object") {
+    const record = parsed as Record<string, unknown>;
+    const parts = [
+      typeof record.task === "string" ? record.task : "",
+      typeof record.chinese === "string" ? record.chinese : "",
+      typeof record.studentAnswer === "string" ? `学生答案：${record.studentAnswer}` : "",
+      typeof record.word === "string" ? `单词：${record.word}` : "",
+      typeof record.studentWord === "string" ? `默写：${record.studentWord}` : ""
+    ].filter(Boolean);
+    if (parts.length > 0) return parts.join("；");
+  }
+  return text;
+}
+
+function summarizeResponseObject(value: object): string {
+  const record = value as Record<string, unknown>;
+  if (Number.isFinite(Number(record.score))) {
+    const issues = Array.isArray(record.issues) ? record.issues.filter((entry) => typeof entry === "string").join("；") : "";
+    return [`得分 ${record.score}`, typeof record.level === "string" ? record.level : "", issues, typeof record.suggestion === "string" ? record.suggestion : ""]
+      .filter(Boolean)
+      .join("；");
+  }
+  if (typeof record.action === "string") {
+    const amount = Number.isFinite(Number(record.amountYuan)) ? `，金额 ${record.amountYuan} 元` : "";
+    const note = typeof record.note === "string" && record.note ? `，原因：${record.note}` : "";
+    return `动作：${record.action}${amount}${note}`;
+  }
+  return JSON.stringify(value);
+}
+
+function nestedString(value: unknown, path: string[]): string {
+  let current = value;
+  for (const key of path) {
+    if (!current || typeof current !== "object" || !(key in current)) return "";
+    current = (current as Record<string, unknown>)[key];
+  }
+  return typeof current === "string" ? current : "";
+}
+
+function extractPreviewString(raw: string, keys: string[]): string {
+  for (const key of keys) {
+    const escaped = new RegExp(`\\\\\\"${key}\\\\\\"\\\\s*:\\\\s*\\\\\\"([^\\\\"]*)`);
+    const plain = new RegExp(`"${key}"\\s*:\\s*"([^"]*)`);
+    const match = raw.match(escaped) || raw.match(plain);
+    if (match?.[1]) return decodePreviewString(match[1]);
+  }
+  return "";
+}
+
+function decodePreviewString(value: string): string {
+  try {
+    return JSON.parse(`"${value.replace(/"/g, '\\"')}"`);
+  } catch {
+    return value.replace(/\\"/g, '"');
+  }
+}
+
+function safeJsonParse(value: string): unknown {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
 }
 
 function formatJson(value: unknown): string {
